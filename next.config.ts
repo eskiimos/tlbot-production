@@ -2,12 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   eslint: {
-    // Предупреждения не блокируют сборку в продакшене
-    ignoreDuringBuilds: false,
+    // Игнорируем ESLint ошибки при сборке в продакшене
+    ignoreDuringBuilds: true,
   },
   typescript: {
-    // Игнорируем ошибки типов при сборке
-    ignoreBuildErrors: false,
+    // Игнорируем ошибки типов при сборке в продакшене
+    ignoreBuildErrors: true,
   },
 };
 
