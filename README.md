@@ -134,7 +134,21 @@ npm run bot
 
 ## Деплой
 
-Для развертывания в продакшене:
+### Деплой на Vercel
+
+Для развертывания проекта на Vercel:
+
+1. Загрузите код в GitHub репозиторий
+2. Зарегистрируйтесь или войдите на [Vercel](https://vercel.com)
+3. Нажмите "Add New..." > "Project"
+4. Импортируйте ваш GitHub репозиторий
+5. Настройте переменные окружения:
+   - `TELEGRAM_BOT_TOKEN` - токен вашего Telegram бота
+   - `DATABASE_URL` - URL вашей PostgreSQL базы данных (рекомендуется Neon, PlanetScale или Railway)
+   - `NEXT_PUBLIC_APP_URL` - URL вашего приложения (например, https://your-app.vercel.app)
+6. Нажмите "Deploy"
+
+### Альтернативные варианты деплоя
 
 1. **Next.js приложение** можно развернуть на Vercel, Netlify или любом другом хостинге
 2. **Telegram Bot** можно развернуть на VPS, Railway, Render или других платформах

@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_APP_URL": "https://tlbot.vercel.app",
+    "TELEGRAM_BOT_TOKEN": "@telegram-bot-token",
+    "DATABASE_URL": "@database-url"
+  },
+  "github": {
+    "silent": true
+  }
+}

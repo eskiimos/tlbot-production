@@ -168,14 +168,18 @@ export default function CartPage() {
   });
 
   const handleSendProposal = async () => {
+    // Проверка наличия данных пользователя
     if (!userData?.telegramId) {
-      console.error("ID пользователя не доступен.");
-      alert("Ошибка: ID пользователя не найден");
+      console.error("ID пользователя не доступен");
+      alert("Ошибка: ID пользователя не найден. Пожалуйста, проверьте данные.");
       return;
     }
 
+    console.log("Начинаем отправку КП в Telegram...");
     setIsSending(true);
     try {
+      // Генерация PDF
+      console.log("Генерация PDF...");
       const pdfBlob = await generatePdfBlob();
       if (!pdfBlob) {
         console.error("Не удалось создать PDF файл");
@@ -183,34 +187,51 @@ export default function CartPage() {
         setIsSending(false);
         return;
       }
+      console.log("PDF успешно создан, размер:", pdfBlob.size);
 
+      // Формируем данные для отправки
       const formData = new FormData();
-      formData.append('file', pdfBlob, `commercial-proposal-${userData.telegramId}.pdf`);
+      const filename = `commercial-proposal-${userData.telegramId}.pdf`;
+      formData.append('file', new File([pdfBlob], filename, { type: 'application/pdf' }));
       formData.append('telegramId', userData.telegramId);
-
+      
+      console.log("Отправка на сервер, telegramId:", userData.telegramId, "filename:", filename);
       const response = await fetch('/api/proposals', {
         method: 'POST',
         body: formData,
       });
 
+      console.log("Ответ сервера:", response.status);
+      
       if (response.ok) {
         const result = await response.json();
+        console.log("Результат запроса:", result);
+        
         if (result.mode === 'development') {
           alert('🧪 Коммерческое предложение создано! (Тестовый режим - отправка в Telegram пропущена)');
         } else {
           alert('Коммерческое предложение успешно отправлено в ваш Telegram!');
         }
-        // Опционально: очистить корзину или перенаправить пользователя
-        // setCartItems([]);
-        // localStorage.removeItem('tlbot_cart');
-        // router.push('/thank-you');
       } else {
-        const errorData = await response.json();
-        alert(`Ошибка при отправке: ${errorData.error || 'Неизвестная ошибка'}`);
+        let errorMessage = 'Неизвестная ошибка';
+        try {
+          const errorData = await response.json();
+          console.error("Детальная ошибка API:", errorData);
+          errorMessage = errorData.details || errorData.error || 'Ошибка сервера';
+          
+          // Вывод диагностической информации, если есть
+          if (errorData.diagnostics) {
+            console.error("Диагностика:", errorData.diagnostics);
+          }
+        } catch (e) {
+          console.error("Не удалось разобрать JSON ответ с ошибкой:", e);
+        }
+        alert(`Ошибка при отправке: ${errorMessage}`);
       }
     } catch (error) {
       console.error("Ошибка при отправке КП:", error);
-      alert("Произошла ошибка при отправке коммерческого предложения.");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Произошла ошибка при отправке: ${errorMessage}`);
     } finally {
       setIsSending(false);
     }
