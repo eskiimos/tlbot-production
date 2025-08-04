@@ -155,12 +155,22 @@ export default function CartPage() {
 
   const { generatePdfBlob, ProposalComponent } = usePDFGenerator({ 
     cartItems, 
-    userData: userData || {} 
+    userData: userData || {
+      telegramId: '123456789',
+      firstName: '',
+      lastName: '',
+      username: '',
+      phoneNumber: '',
+      email: '',
+      companyName: '',
+      inn: ''
+    }
   });
 
   const handleSendProposal = async () => {
     if (!userData?.telegramId) {
       console.error("ID пользователя не доступен.");
+      alert("Ошибка: ID пользователя не найден");
       return;
     }
 
@@ -168,6 +178,7 @@ export default function CartPage() {
     try {
       const pdfBlob = await generatePdfBlob();
       if (!pdfBlob) {
+        console.error("Не удалось создать PDF файл");
         alert("Не удалось создать PDF файл.");
         setIsSending(false);
         return;
@@ -183,7 +194,12 @@ export default function CartPage() {
       });
 
       if (response.ok) {
-        alert('Коммерческое предложение успешно отправлено в ваш Telegram!');
+        const result = await response.json();
+        if (result.mode === 'development') {
+          alert('🧪 Коммерческое предложение создано! (Тестовый режим - отправка в Telegram пропущена)');
+        } else {
+          alert('Коммерческое предложение успешно отправлено в ваш Telegram!');
+        }
         // Опционально: очистить корзину или перенаправить пользователя
         // setCartItems([]);
         // localStorage.removeItem('tlbot_cart');
@@ -301,19 +317,25 @@ export default function CartPage() {
 
   // Функция для обработки создания коммерческого предложения
   const handleCreateCommercialOffer = async () => {
-    if (!userData) {
-      setShowUserDataForm(true);
-      return;
+    try {
+      if (!userData) {
+        setShowUserDataForm(true);
+        return;
+      }
+      
+      // Проверяем наличие всех обязательных полей
+      const { firstName, phoneNumber, email, companyName, inn } = userData;
+      
+      if (!firstName || !phoneNumber || !email || !companyName || !inn) {
+        setShowUserDataForm(true);
+        return;
+      }
+      
+      await handleSendProposal();
+    } catch (error) {
+      console.error("Ошибка в handleCreateCommercialOffer:", error);
+      alert("Произошла ошибка: " + error);
     }
-    // Проверяем наличие всех обязательных полей
-    const { firstName, phoneNumber, email, companyName, inn } = userData;
-    if (!firstName || !phoneNumber || !email || !companyName || !inn) {
-      console.log("Неполные данные, показываем форму:", userData);
-      setShowUserDataForm(true);
-      return;
-    }
-    
-    await handleSendProposal();
   };
 
   const handleFormSubmit = (data: UserData) => {
@@ -712,7 +734,7 @@ export default function CartPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-2xl w-full max-w-md">
             <UserDataForm
-              onSubmit={handleGeneratePDFFromForm}
+              onSubmit={handleFormSubmit}
               onCancel={() => setShowUserDataForm(false)}
               initialData={userData || {}}
             />

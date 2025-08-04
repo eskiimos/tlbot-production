@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     // Игнорируем ошибки типов при сборке в продакшене
     ignoreBuildErrors: true,
   },
+  output: 'standalone',
 };
 
 export default nextConfig;

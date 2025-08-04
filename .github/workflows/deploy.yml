@@ -1,0 +1,38 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        
+    - name: Add server to known hosts
+      run: |
+        ssh-keyscan -H 89.104.65.237 >> ~/.ssh/known_hosts
+        
+    - name: Deploy to server
+      run: |
+        ssh tlbot@89.104.65.237 '
+          cd /home/tlbot &&
+          git pull origin main &&
+          docker-compose --env-file .env.server down &&
+          docker-compose --env-file .env.server up -d --build &&
+          docker system prune -f
+        '
+        
+    - name: Health check
+      run: |
+        sleep 30
+        curl -f http://89.104.65.237 || exit 1
