@@ -5,9 +5,7 @@
   "framework": "nextjs",
   "outputDirectory": ".next",
   "env": {
-    "NEXT_PUBLIC_APP_URL": "https://tlbot-wine.vercel.app",
-    "TELEGRAM_BOT_TOKEN": "@telegram-bot-token",
-    "DATABASE_URL": "@database-url"
+    "NEXT_PUBLIC_APP_URL": "https://tlbot-wine.vercel.app"
   },
   "github": {
     "silent": true
