@@ -20,13 +20,15 @@ jobs:
         
     - name: Add server to known hosts
       run: |
+        mkdir -p ~/.ssh
         ssh-keyscan -H 89.104.65.237 >> ~/.ssh/known_hosts
         
     - name: Deploy to server
       run: |
-        ssh tlbot@89.104.65.237 '
+        ssh -o StrictHostKeyChecking=no tlbot@89.104.65.237 '
           cd /home/tlbot &&
-          git pull origin main &&
+          git fetch origin main &&
+          git reset --hard origin/main &&
           docker-compose --env-file .env.server down &&
           docker-compose --env-file .env.server up -d --build &&
           docker system prune -f
