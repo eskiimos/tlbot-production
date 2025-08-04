@@ -1,0 +1,176 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Модель пользователя
+model User {
+  id        String   @id @default(cuid())
+  telegramId BigInt  @unique
+  username  String?
+  firstName String
+  lastName  String?
+  language  String   @default("ru")
+  isBot     Boolean  @default(false)
+  isPremium Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Связи
+  messages Message[]
+  sessions Session[]
+  organization Organization?
+
+  @@map("users")
+}
+
+// Модель организации
+model Organization {
+  id          String   @id @default(cuid())
+  contactName String   // Имя контактного лица
+  inn         String   // ИНН организации
+  phone       String   // Номер телефона
+  email       String?  // Email (необязательный)
+  
+  // Связь с пользователем Telegram
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("organizations")
+}
+
+// Модель товаров
+model Product {
+  id          String   @id @default(cuid())
+  name        String   // Название товара
+  slug        String   @unique // URL-friendly название для поиска изображений
+  price       Int      // Минимальная цена в рублях (для 100+ штук)
+  images      String[] // Массив путей к изображениям
+  description String?  // Описание товара (опционально)
+  isActive    Boolean  @default(true) // Активен ли товар
+  
+  // Связь с ценовыми уровнями и опциями
+  priceTiers PriceTier[]
+  options    ProductOption[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("products")
+}
+
+// Модель ценовых уровней
+model PriceTier {
+  id        String @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  minQuantity Int // Минимальное количество для этого уровня
+  maxQuantity Int? // Максимальное количество (null для последнего уровня)
+  price       Int // Цена за единицу на этом уровне
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("price_tiers")
+}
+
+// Модель опций товара (цвета, принты, упаковка и т.д.)
+model ProductOption {
+  id        String @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  category    String // "color", "print", "packaging", "label", "design"
+  name        String // Название опции
+  price       Int    // Дополнительная цена за единицу (0 если бесплатно)
+  description String? // Описание опции для подсказок (может быть пустым)
+  isDefault   Boolean @default(false) // Опция по умолчанию
+  isActive    Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("product_options")
+}
+
+// Модель сообщений
+model Message {
+  id         String      @id @default(cuid())
+  telegramId BigInt?     // ID сообщения в Telegram
+  content    String
+  type       MessageType @default(TEXT)
+  
+  // Связь с пользователем
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("messages")
+}
+
+// Модель сессий для хранения состояния бота
+model Session {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  data Json // Произвольные данные сессии
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime?
+
+  @@map("sessions")
+}
+
+// Модель для веб-приложений данных
+model WebAppData {
+  id     String @id @default(cuid())
+  userId String
+  data   Json   // Данные из мини-приложения
+  
+  createdAt DateTime @default(now())
+
+  @@map("webapp_data")
+}
+
+// Типы сообщений
+enum MessageType {
+  TEXT
+  PHOTO
+  VIDEO
+  DOCUMENT
+  VOICE
+  STICKER
+  LOCATION
+  CONTACT
+  WEBAPP_DATA
+}
+
+// Модель для настроек бота
+model BotSettings {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bot_settings")
+}

@@ -1,36 +1,151 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Telegram Bot и Mini App
 
-## Getting Started
+Проект для создания Telegram бота с интегрированным мини-приложением на Next.js и базой данных PostgreSQL.
 
-First, run the development server:
+## Структура проекта
 
+- **Telegram Bot** - создан с использованием библиотеки Telegraf
+- **Mini App** - веб-приложение на Next.js с поддержкой Telegram WebApp API
+- **База данных** - PostgreSQL с ORM Prisma
+- **shadcn/ui** - библиотека компонентов для красивого интерфейса
+
+## Технологии
+
+- Next.js 15 с App Router
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Telegraf (Telegram Bot Framework)
+- Telegram WebApp API
+- Prisma ORM
+- PostgreSQL
+
+## Установка и запуск
+
+1. Установите зависимости:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Создайте файл `.env.local` и добавьте ваш токен бота:
+```env
+TELEGRAM_BOT_TOKEN=ваш_токен_бота
+NEXT_PUBLIC_APP_URL=http://localhost:3001
+DATABASE_URL="prisma+postgres://localhost:51213/..."
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Запустите локальную базу данных:
+```bash
+npm run db:dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Примените миграции и заполните тестовыми данными:
+```bash
+npm run db:migrate
+npm run db:seed
+```
 
-## Learn More
+5. Запустите мини-приложение:
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+6. В другом терминале запустите Telegram бота:
+```bash
+npm run bot
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Команды разработки
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Основные команды
+- `npm run dev` - запуск Next.js приложения в режиме разработки
+- `npm run build` - сборка приложения для продакшена
+- `npm run start` - запуск собранного приложения
+- `npm run bot` - запуск Telegram бота
+- `npm run dev:bot` - запуск бота в режиме разработки с автоперезагрузкой
+- `npm run lint` - проверка кода ESLint
 
-## Deploy on Vercel
+### Команды базы данных
+- `npm run db:dev` - запуск локальной PostgreSQL базы данных через Prisma
+- `npm run db:migrate` - применение миграций базы данных
+- `npm run db:generate` - генерация Prisma Client
+- `npm run db:studio` - открытие Prisma Studio для просмотра данных
+- `npm run db:seed` - заполнение базы тестовыми данными
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Использование
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Запустите бота командой `/start`
+2. Используйте команду `/webapp` для открытия мини-приложения
+3. Используйте команду `/stats` для просмотра статистики
+4. В мини-приложении введите сообщение и нажмите кнопку "Отправить данные"
+5. Данные будут сохранены в базе данных и переданы обратно в бот
+
+## База данных
+
+Схема базы данных включает следующие таблицы:
+
+- **users** - пользователи Telegram
+- **messages** - сообщения от пользователей
+- **sessions** - сессии для хранения состояния бота
+- **webapp_data** - данные из мини-приложения
+- **bot_settings** - настройки бота
+
+### Просмотр данных
+
+- Тестовая страница: `http://localhost:3001/test`
+- Prisma Studio: `npm run db:studio`
+
+## Файловая структура
+
+```
+├── src/
+│   ├── app/                 # Next.js приложение
+│   │   ├── api/             # API маршруты
+│   │   │   ├── bot/         # API для бота
+│   │   │   ├── users/       # API пользователей
+│   │   │   ├── messages/    # API сообщений
+│   │   │   └── webapp-data/ # API данных приложения
+│   │   ├── test/            # Тестовая страница БД
+│   │   ├── globals.css      # Глобальные стили
+│   │   ├── layout.tsx       # Корневой layout
+│   │   └── page.tsx         # Главная страница мини-приложения
+│   ├── bot/
+│   │   └── index.ts         # Логика Telegram бота
+│   └── lib/
+│       ├── prisma.ts        # Prisma Client
+│       └── utils.ts         # Утилиты
+├── prisma/
+│   ├── schema.prisma        # Схема базы данных
+│   ├── seed.ts              # Файл заполнения тестовыми данными
+│   └── migrations/          # Миграции базы данных
+├── .env.local               # Переменные окружения
+├── bot.ts                   # Точка входа для бота
+└── components.json          # Конфигурация shadcn/ui
+```
+
+## API Endpoints
+
+- `GET /api/users` - получить всех пользователей
+- `POST /api/users` - создать/обновить пользователя
+- `GET /api/messages` - получить сообщения
+- `POST /api/messages` - создать сообщение
+- `GET /api/webapp-data` - получить данные веб-приложения
+- `POST /api/webapp-data` - сохранить данные веб-приложения
+
+## Деплой
+
+Для развертывания в продакшене:
+
+1. **Next.js приложение** можно развернуть на Vercel, Netlify или любом другом хостинге
+2. **Telegram Bot** можно развернуть на VPS, Railway, Render или других платформах
+3. **База данных** можно развернуть на Neon, Supabase, Railway или других PostgreSQL хостингах
+4. Не забудьте обновить переменные окружения на продакшн значения
+
+## Возможности расширения
+
+- Добавление аутентификации пользователей
+- Интеграция с платежными системами через Telegram Payments
+- Добавление новых команд и функций бота
+- Создание административной панели
+- Добавление уведомлений и рассылок
+- Интеграция с внешними API

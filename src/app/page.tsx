@@ -1,103 +1,479 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+
+// Типы для Telegram WebApp
+interface TelegramWebApp {
+  ready: () => void;
+  expand: () => void;
+  MainButton: {
+    text: string;
+    show: () => void;
+    hide: () => void;
+    onClick: (fn: () => void) => void;
+  };
+  sendData: (data: string) => void;
+  close: () => void;
+  initData: string;
+  initDataUnsafe: {
+    user?: {
+      id: number;
+      first_name: string;
+      username?: string;
+    };
+  };
+}
+
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: TelegramWebApp;
+    };
+  }
+}
+
+interface FormData {
+  contactName: string;
+  inn: string;
+  phone: string;
+  email: string;
+}
+
+interface FormErrors {
+  contactName?: string;
+  inn?: string;
+  phone?: string;
+  email?: string;
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isEditMode = searchParams.get('edit') === 'true';
+  
+  const [tg, setTg] = useState<TelegramWebApp | null>(null);
+  const [userData, setUserData] = useState<{
+    id: number;
+    first_name: string;
+    username?: string;
+  } | null>(null);
+  
+  const [formData, setFormData] = useState<FormData>({
+    contactName: '',
+    inn: '',
+    phone: '',
+    email: ''
+  });
+  
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Валидация формы
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    if (!formData.contactName.trim()) {
+      newErrors.contactName = 'Имя контактного лица обязательно';
+    }
+
+    if (!formData.inn.trim()) {
+      newErrors.inn = 'ИНН организации обязателен';
+    } else if (!/^\d{10}$|^\d{12}$/.test(formData.inn)) {
+      newErrors.inn = 'ИНН должен содержать 10 или 12 цифр';
+    }
+
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Номер телефона обязателен';
+    } else if (!/^[\+]?[0-9\(\)\-\s]+$/.test(formData.phone)) {
+      newErrors.phone = 'Некорректный формат телефона';
+    }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Некорректный формат email';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Обработка отправки формы
+  const handleSubmit = async () => {
+    if (validateForm()) {
+      setIsSubmitting(true);
+      
+      try {
+        // Создаем тестового пользователя если его нет (для тестирования вне Telegram)
+        const testUser = userData || {
+          id: 12345,
+          first_name: 'Тестовый',
+          username: 'test_user'
+        };
+
+        console.log('Отправляем данные:', {
+          contactName: formData.contactName,
+          inn: formData.inn,
+          phone: formData.phone,
+          email: formData.email,
+          user: testUser,
+        });
+
+        // Сохраняем данные в базе данных
+        const response = await fetch('/api/organizations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contactName: formData.contactName,
+            inn: formData.inn,
+            phone: formData.phone,
+            email: formData.email,
+            user: testUser,
+          }),
+        });
+
+        const responseData = await response.json();
+        console.log('Ответ сервера:', responseData);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${responseData.error || 'Ошибка при сохранении данных'}`);
+        }
+
+        const data = {
+          formType: 'organization_registration',
+          contactName: formData.contactName,
+          inn: formData.inn,
+          phone: formData.phone,
+          email: formData.email,
+          user: userData,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Отправляем данные в Telegram если доступно
+        if (tg) {
+          tg.sendData(JSON.stringify(data));
+        }
+        
+        // Переходим на страницу каталога
+        setTimeout(() => {
+          router.push('/catalog');
+        }, 500);
+        
+      } catch (error) {
+        console.error('Ошибка при сохранении:', error);
+        setIsSubmitting(false);
+        const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+        alert(`Ошибка: ${errorMessage}`);
+      }
+    }
+  };
+
+  // Загрузка существующих данных организации
+  const loadExistingOrganization = async (telegramId: number) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/organizations?telegramId=${telegramId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.organization) {
+          console.log('Найдена существующая организация');
+          
+          // Если это режим редактирования, загружаем данные в форму
+          if (isEditMode) {
+            setFormData({
+              contactName: data.organization.contactName,
+              inn: data.organization.inn,
+              phone: data.organization.phone,
+              email: data.organization.email || '',
+            });
+            return false; // Не перенаправляем, показываем форму для редактирования
+          } else {
+            // Обычный режим - перенаправляем в каталог
+            console.log('Перенаправляем в каталог...');
+            setIsRedirecting(true);
+            setTimeout(() => {
+              router.push('/catalog');
+            }, 1000);
+            return true; // Организация найдена, перенаправляем
+          }
+        }
+      }
+      return false; // Организация не найдена
+    } catch (error) {
+      console.error('Ошибка при загрузке данных организации:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Устанавливаем флаг монтирования
+    setIsMounted(true);
+    
+    // Асинхронная функция для инициализации
+    const initializeApp = async () => {
+      // Инициализация Telegram WebApp
+      if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+        const webapp = window.Telegram.WebApp;
+        setTg(webapp);
+        
+        // Готовность приложения
+        webapp.ready();
+        webapp.expand();
+        
+        // Получение данных пользователя
+        if (webapp.initDataUnsafe?.user) {
+          setUserData(webapp.initDataUnsafe.user);
+          
+          // Загружаем существующие данные организации и проверяем перенаправление
+          const organizationExists = await loadExistingOrganization(webapp.initDataUnsafe.user.id);
+          
+          // Если организация не найдена, предзаполняем форму
+          if (!organizationExists) {
+            setFormData(prev => ({
+              ...prev,
+              contactName: webapp.initDataUnsafe.user?.first_name || ''
+            }));
+          }
+        } else {
+          // Если нет данных пользователя, создаем тестового пользователя для разработки
+          const testUserId = 12345;
+          const organizationExists = await loadExistingOrganization(testUserId);
+          
+          if (!organizationExists) {
+            setFormData(prev => ({
+              ...prev,
+              contactName: 'Тестовый пользователь'
+            }));
+          }
+        }
+
+        // Настройка главной кнопки
+        webapp.MainButton.text = isEditMode ? 'Сохранить изменения' : 'Далее';
+        webapp.MainButton.show();
+        webapp.MainButton.onClick(handleSubmit);
+      } else {
+        // Если не в Telegram, также проверяем тестового пользователя
+        const testUserId = 12345;
+        const organizationExists = await loadExistingOrganization(testUserId);
+        
+        if (!organizationExists) {
+          setFormData(prev => ({
+            ...prev,
+            contactName: 'Тестовый пользователь'
+          }));
+        }
+      }
+    };
+
+    initializeApp();
+  }, []);
+
+  // Обновляем состояние кнопки при изменении формы
+  useEffect(() => {
+    if (tg && isMounted) {
+      const isFormValid = formData.contactName && formData.inn && formData.phone;
+      if (isFormValid && !isSubmitting) {
+        tg.MainButton.text = isEditMode ? 'Сохранить изменения' : 'Далее';
+      } else {
+        tg.MainButton.text = 'Заполните обязательные поля';
+      }
+    }
+  }, [formData, isSubmitting, tg, isMounted, isEditMode]);
+
+  const handleInputChange = (field: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: e.target.value
+    }));
+    
+    // Очищаем ошибку при вводе
+    if (errors[field]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: undefined
+      }));
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f8f8f8] p-4">
+      {isMounted ? (
+        <div className="max-w-md mx-auto bg-white rounded-lg shadow-xl p-6">
+          {/* Кнопка "Назад" в режиме редактирования */}
+          {isEditMode && (
+            <div className="mb-6">
+              <button
+                onClick={() => router.push('/catalog')}
+                className="flex items-center text-gray-600 hover:text-[#303030] transition-colors"
+              >
+                <svg 
+                  className="w-5 h-5 mr-2" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Назад в каталог
+              </button>
+            </div>
+          )}
+          
+          <h1 className="text-2xl font-bold text-center text-[#303030] mb-8">
+            {isEditMode ? 'Редактирование данных' : 'Регистрация организации'}
+          </h1>
+          
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#303030] mx-auto"></div>
+              <p className="text-gray-600 mt-4">Проверяем регистрацию...</p>
+            </div>
+          ) : isRedirecting ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+              <p className="text-green-600 mt-4">Вы уже зарегистрированы!</p>
+              <p className="text-gray-500 text-sm mt-2">Переходим в каталог...</p>
+            </div>
+          ) : (
+            <>
+              <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+                {/* Контактное лицо */}
+                <div>
+                  <label htmlFor="contactName" className="block text-sm font-medium text-[#303030] mb-2">
+                    Контактное лицо <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="contactName"
+                    value={formData.contactName}
+                    onChange={handleInputChange('contactName')}
+                    className={`w-full px-4 py-3 border-2 rounded-lg bg-white text-[#303030] placeholder-gray-400 transition-colors focus:outline-none ${
+                      errors.contactName 
+                        ? 'border-red-500 focus:border-red-600' 
+                        : 'border-gray-300 focus:border-[#303030]'
+                    }`}
+                    placeholder="Введите имя контактного лица"
+                  />
+                  {errors.contactName && (
+                    <p className="text-red-500 text-sm mt-1">{errors.contactName}</p>
+                  )}
+                </div>
+
+                {/* ИНН организации */}
+                <div>
+                  <label htmlFor="inn" className="block text-sm font-medium text-[#303030] mb-2">
+                    ИНН организации <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="inn"
+                    value={formData.inn}
+                    onChange={handleInputChange('inn')}
+                    className={`w-full px-4 py-3 border-2 rounded-lg bg-white text-[#303030] placeholder-gray-400 transition-colors focus:outline-none ${
+                      errors.inn 
+                        ? 'border-red-500 focus:border-red-600' 
+                        : 'border-gray-300 focus:border-[#303030]'
+                    }`}
+                    placeholder="1234567890"
+                    maxLength={12}
+                  />
+                  {errors.inn && (
+                    <p className="text-red-500 text-sm mt-1">{errors.inn}</p>
+                  )}
+                </div>
+
+                {/* Номер телефона */}
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-[#303030] mb-2">
+                    Номер телефона <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    id="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange('phone')}
+                    className={`w-full px-4 py-3 border-2 rounded-lg bg-white text-[#303030] placeholder-gray-400 transition-colors focus:outline-none ${
+                      errors.phone 
+                        ? 'border-red-500 focus:border-red-600' 
+                        : 'border-gray-300 focus:border-[#303030]'
+                    }`}
+                    placeholder="+7 (XXX) XXX-XX-XX"
+                  />
+                  {errors.phone && (
+                    <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-[#303030] mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    value={formData.email}
+                    onChange={handleInputChange('email')}
+                    className={`w-full px-4 py-3 border-2 rounded-lg bg-white text-[#303030] placeholder-gray-400 transition-colors focus:outline-none ${
+                      errors.email 
+                        ? 'border-red-500 focus:border-red-600' 
+                        : 'border-gray-300 focus:border-[#303030]'
+                    }`}
+                    placeholder="company@example.com"
+                  />
+                  {errors.email && (
+                    <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+                  )}
+                </div>
+
+                {/* Кнопка для тестирования */}
+                {isMounted && (
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+                      isSubmitting
+                        ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                        : 'bg-[#303030] text-white hover:bg-[#404040] active:bg-[#202020]'
+                    }`}
+                  >
+                    {isSubmitting ? (isEditMode ? 'Сохранение...' : 'Отправка...') : (isEditMode ? 'Сохранить изменения' : 'Далее')}
+                  </button>
+                )}
+              </form>
+
+              <div className="mt-6 text-center">
+                <p className="text-xs text-gray-500">
+                  Поля отмеченные <span className="text-red-500">*</span> обязательны для заполнения
+                </p>
+              </div>
+            </>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      ) : (
+        <div className="max-w-md mx-auto bg-white rounded-lg shadow-xl p-6">
+          <div className="text-center">
+            <div className="animate-pulse">
+              <div className="h-8 bg-gray-200 rounded mb-8"></div>
+              <div className="space-y-6">
+                <div className="h-16 bg-gray-100 rounded"></div>
+                <div className="h-16 bg-gray-100 rounded"></div>
+                <div className="h-16 bg-gray-100 rounded"></div>
+                <div className="h-16 bg-gray-100 rounded"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

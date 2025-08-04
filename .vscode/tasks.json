@@ -1,0 +1,39 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start Development",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"dev"
+			],
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start Bot",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"dev:bot"
+			],
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start All",
+			"dependsOrder": "parallel",
+			"dependsOn": [
+				"Start Development",
+				"Start Bot"
+			],
+			"group": "build",
+			"isBackground": true
+		}
+	]
+}
