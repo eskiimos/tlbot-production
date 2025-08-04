@@ -24,8 +24,13 @@ export async function POST(request: NextRequest) {
       }, { status: 200 });
     }
 
-    // Инициализируем бот здесь, а не глобально
-    const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN || '');
+    // Инициализируем бот для каждого запроса
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      console.error('TELEGRAM_BOT_TOKEN не найден в переменных окружения');
+      return NextResponse.json({ error: 'Не настроен токен бота' }, { status: 500 });
+    }
+    
+    const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
     
     // Преобразуем Blob в Buffer, чтобы Telegraf мог с ним работать
     const fileBuffer = Buffer.from(await file.arrayBuffer());

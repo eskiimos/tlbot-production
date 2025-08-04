@@ -160,15 +160,27 @@ bot.on('web_app_data', async (ctx) => {
   }
 });
 
-// Запуск бота
-bot.launch().then(() => {
-  console.log('Telegram бот запущен!');
-}).catch((err) => {
-  console.error('Ошибка запуска бота:', err);
-});
-
-// Обработка завершения процесса
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+// Функция для запуска бота
+export async function startBot() {
+  try {
+    if (process.env.NODE_ENV !== 'production') {
+      // Запускаем бота через Long Polling только в режиме разработки
+      await bot.launch();
+      console.log('Telegram бот запущен в режиме разработки!');
+      
+      // Обработка завершения процесса
+      process.once('SIGINT', () => bot.stop('SIGINT'));
+      process.once('SIGTERM', () => bot.stop('SIGTERM'));
+    } else {
+      // В production режиме просто проверяем подключение к API
+      await bot.telegram.getMe();
+      console.log('Telegram бот готов к обработке webhook запросов!');
+    }
+    return true;
+  } catch (error) {
+    console.error('Ошибка при инициализации бота:', error);
+    return false;
+  }
+}
 
 export default bot;
