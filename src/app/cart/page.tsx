@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -76,8 +76,8 @@ export default function CartPage() {
 
     // Mock Telegram WebApp для разработки
     if (process.env.NODE_ENV === 'development') {
-      // @ts-ignore
-      window.Telegram = {
+          // @ts-expect-error Mock Telegram WebApp для разработки
+    window.Telegram = {
         WebApp: {
           initDataUnsafe: {
             user: {
