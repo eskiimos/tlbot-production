@@ -649,26 +649,46 @@ export default function CartPage() {
 
             {/* Кнопки действий */}
             <div className="space-y-3">
+              {/* Кнопка отправки в Telegram */}
+              <button
+                onClick={handleSendProposal}
+                disabled={isGeneratingPDF || isSending}
+                className={`w-full py-4 rounded-lg font-semibold text-lg transition-colors flex items-center justify-center gap-3 ${
+                  isGeneratingPDF || isSending
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                    : 'bg-[#229ED9] text-white hover:bg-[#1e88c7]'
+                }`}
+              >
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121L9.864 13.63l-2.915-.918c-.636-.194-.648-.636.137-.942L17.926 7.08c.529-.194.99.123.824.73-.001.006-.002.012-.003.018z"/>
+                </svg>
+                {isLoadingUserData 
+                  ? 'Загружаем данные...' 
+                  : isSending 
+                    ? 'Отправляем в Telegram...' 
+                    : 'Отправить КП в Telegram'
+                }
+              </button>
+
+              {/* Кнопка скачивания PDF */}
               <button
                 onClick={handleCreateCommercialOffer}
                 disabled={isGeneratingPDF || isSending}
-                className={`w-full py-4 rounded-lg font-semibold text-lg transition-colors ${
+                className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
                   isGeneratingPDF || isSending
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                    : 'bg-[#303030] text-white hover:bg-[#404040]'
+                    : 'bg-gray-100 text-[#303030] hover:bg-gray-200'
                 }`}
               >
-                {isLoadingUserData 
-                  ? 'Загружаем данные...' 
-                  : isGeneratingPDF 
-                    ? 'Создается КП...' 
-                    : 'Отправить КП в Telegram'
-                }
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                </svg>
+                {isGeneratingPDF ? 'Создается PDF...' : 'Скачать PDF'}
               </button>
               
               <Link
                 href="/catalog"
-                className="block w-full py-3 bg-gray-100 text-[#303030] rounded-lg font-medium text-center hover:bg-gray-200 transition-colors"
+                className="block w-full py-3 bg-gray-50 text-[#303030] rounded-lg font-medium text-center hover:bg-gray-100 transition-colors"
               >
                 Продолжить покупки
               </Link>
