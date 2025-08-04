@@ -1,8 +1,7 @@
 name: Deploy to Server
 
 on:
-  push:
-    branches: [ main ]
+  # Запускается только вручную, автоматический запуск при push отключен
   workflow_dispatch:
 
 jobs:
