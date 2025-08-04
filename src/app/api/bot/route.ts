@@ -28,19 +28,34 @@ export async function POST(request: NextRequest) {
       botInitialized = await startBot();
     }
 
-    // Получаем данные запроса
-    const body = await request.json();
-    console.log('Webhook received:', body);
-    
-    // Здесь можно обрабатывать webhook от Telegram
-    // В production режиме нужно обработать обновление через webhook
-    if (process.env.NODE_ENV === 'production' && botInitialized) {
-      await bot.handleUpdate(body);
+    // Проверка, что бот успешно инициализирован
+    if (!botInitialized) {
+      console.error('Failed to initialize bot for webhook processing');
+      return NextResponse.json({ error: 'Bot not initialized' }, { status: 500 });
     }
+
+    // Получаем данные запроса
+    const body = await request.json().catch(err => {
+      console.error('Error parsing webhook JSON:', err);
+      return null;
+    });
+    
+    // Проверяем, что получили валидные данные
+    if (!body) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
+    
+    console.log('Webhook received:', JSON.stringify(body).substring(0, 200) + '...');
+    
+    // Обрабатываем update от Telegram через webhook
+    await bot.handleUpdate(body);
     
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('Error in POST /api/bot:', error);
-    return NextResponse.json({ error: 'Failed to process webhook' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to process webhook',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
