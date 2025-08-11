@@ -13,6 +13,8 @@
     "db:migrate": "npx prisma migrate dev",
     "db:studio": "npx prisma studio",
     "db:seed": "npx tsx prisma/seed.ts",
+    "webhook:set": "npx tsx scripts/setup-webhook.ts",
+    "webhook:remove": "npx tsx scripts/setup-webhook.ts remove",
     "postinstall": "prisma generate"
   },
   "dependencies": {

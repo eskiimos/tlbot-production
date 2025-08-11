@@ -996,10 +996,10 @@ export default function CartPage() {
             <div className="space-y-3">
               {/* Кнопка отправки в Telegram */}
               <button
-                onClick={handleSendProposal}
-                disabled={isGeneratingPDF || isSending}
+                onClick={() => setShowUserDataForm(true)}
+                disabled={isSending}
                 className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 border ${
-                  isGeneratingPDF || isSending
+                  isSending
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
                     : 'bg-white text-[#303030] border-gray-300 hover:bg-gray-50 active:bg-gray-100'
                 }`}
@@ -1007,11 +1007,9 @@ export default function CartPage() {
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121L9.864 13.63l-2.915-.918c-.636-.194-.648-.636.137-.942L17.926 7.08c.529-.194.99.123.824.73-.001.006-.002.012-.003.018z"/>
                 </svg>
-                {isLoadingUserData 
-                  ? 'Загружаем данные...' 
-                  : isSending 
-                    ? 'Отправляем в Telegram...' 
-                    : 'Отправить КП в Telegram'
+                {isSending 
+                  ? 'Отправляем в Telegram...' 
+                  : 'Отправить КП в Telegram'
                 }
               </button>
             </div>

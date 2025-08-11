@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,144 +7,157 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Модель пользователя
 model User {
-  id        String   @id @default(cuid())
-  telegramId BigInt  @unique
-  username  String?
-  firstName String
-  lastName  String?
-  language  String   @default("ru")
-  isBot     Boolean  @default(false)
-  isPremium Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Связи
-  messages Message[]
-  sessions Session[]
+  id           String        @id @default(cuid())
+  telegramId   BigInt        @unique
+  username     String?
+  firstName    String
+  lastName     String?
+  language     String        @default("ru")
+  isBot        Boolean       @default(false)
+  isPremium    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  messages     Message[]
   organization Organization?
+  sessions     Session[]
 
   @@map("users")
 }
 
-// Модель организации
 model Organization {
   id          String   @id @default(cuid())
-  contactName String   // Имя контактного лица
-  inn         String   // ИНН организации
-  phone       String   // Номер телефона
-  email       String?  // Email (необязательный)
-  
-  // Связь с пользователем Telegram
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  contactName String
+  inn         String
+  phone       String
+  email       String?
+  userId      String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("organizations")
 }
 
-// Модель товаров
 model Product {
-  id          String   @id @default(cuid())
-  name        String   // Название товара
-  slug        String   @unique // URL-friendly название для поиска изображений
-  price       Int      // Минимальная цена в рублях (для 100+ штук)
-  images      String[] // Массив путей к изображениям
-  description String?  // Описание товара (опционально)
-  isActive    Boolean  @default(true) // Активен ли товар
-  
-  // Связь с ценовыми уровнями и опциями
-  priceTiers PriceTier[]
-  options    ProductOption[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String          @id @default(cuid())
+  name        String
+  slug        String          @unique
+  price       Int
+  images      String[]
+  description String?
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  priceTiers  PriceTier[]
+  options     ProductOption[]
 
   @@map("products")
 }
 
-// Модель ценовых уровней
 model PriceTier {
-  id        String @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  
-  minQuantity Int // Минимальное количество для этого уровня
-  maxQuantity Int? // Максимальное количество (null для последнего уровня)
-  price       Int // Цена за единицу на этом уровне
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  productId   String
+  minQuantity Int
+  maxQuantity Int?
+  price       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("price_tiers")
 }
 
-// Модель опций товара (цвета, принты, упаковка и т.д.)
 model ProductOption {
-  id        String @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  
-  category    String // "color", "print", "packaging", "label", "design"
-  name        String // Название опции
-  price       Int    // Дополнительная цена за единицу (0 если бесплатно)
-  description String? // Описание опции для подсказок (может быть пустым)
-  isDefault   Boolean @default(false) // Опция по умолчанию
-  isActive    Boolean @default(true)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  productId   String
+  category    String
+  name        String
+  price       Int
+  description String?
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_options")
 }
 
-// Модель сообщений
 model Message {
   id         String      @id @default(cuid())
-  telegramId BigInt?     // ID сообщения в Telegram
+  telegramId BigInt?
   content    String
   type       MessageType @default(TEXT)
-  
-  // Связь с пользователем
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  userId     String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("messages")
 }
 
-// Модель сессий для хранения состояния бота
 model Session {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  data Json // Произвольные данные сессии
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(cuid())
+  userId    String
+  data      Json
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   expiresAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
 }
 
-// Модель для веб-приложений данных
 model WebAppData {
-  id     String @id @default(cuid())
-  userId String
-  data   Json   // Данные из мини-приложения
-  
+  id        String   @id @default(cuid())
+  userId    String
+  data      Json
   createdAt DateTime @default(now())
 
   @@map("webapp_data")
 }
 
-// Типы сообщений
+model BotSettings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bot_settings")
+}
+
+model Order {
+  id               String      @id @default(cuid())
+  userId           String
+  telegramId       String
+  customerName     String
+  customerEmail    String?
+  customerPhone    String?
+  customerCompany  String?
+  customerInn      String?
+  items            Json
+  totalAmount      Int
+  status           OrderStatus @default(NEW)
+  proposalFilePath String?
+  adminComment     String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@map("orders")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
+}
+
 enum MessageType {
   TEXT
   PHOTO
@@ -163,69 +170,12 @@ enum MessageType {
   WEBAPP_DATA
 }
 
-// Модель для настроек бота
-model BotSettings {
-  id    String @id @default(cuid())
-  key   String @unique
-  value String
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("bot_settings")
-}
-
-// Модель заказа для админки
-model Order {
-  id        String   @id @default(cuid())
-  userId    String
-  telegramId String
-  
-  // Информация о пользователе
-  customerName     String
-  customerEmail    String?
-  customerPhone    String?
-  customerCompany  String?
-  customerInn      String?
-  
-  // Информация о заказе
-  items            Json     // Массив товаров из корзины
-  totalAmount      Int      // Общая сумма в копейках
-  
-  // Статус заказа
-  status           OrderStatus @default(NEW)
-  
-  // Файлы
-  proposalFilePath String?  // Путь к файлу КП
-  
-  // Комментарии администратора
-  adminComment     String?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("orders")
-}
-
-// Статусы заказов
 enum OrderStatus {
-  NEW           // Новая заявка
-  IN_PROGRESS   // В обработке
-  DESIGN        // На стадии дизайна
-  PRODUCTION    // В производстве
-  READY         // Готов к выдаче
-  COMPLETED     // Завершен
-  CANCELLED     // Отменен
-}
-
-// Модель администратора
-model Admin {
-  id       String @id @default(cuid())
-  username String @unique
-  password String // Хешированный пароль
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("admins")
+  NEW
+  IN_PROGRESS
+  DESIGN
+  PRODUCTION
+  READY
+  COMPLETED
+  CANCELLED
 }

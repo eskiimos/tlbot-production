@@ -19,10 +19,8 @@ interface CartItem {
 
 interface UserData {
   firstName?: string;
-  lastName?: string;
   phoneNumber?: string;
   email?: string;
-  companyName?: string;
   inn?: string;
 }
 
@@ -82,15 +80,14 @@ export const CommercialProposalHTML = React.forwardRef<HTMLDivElement, Commercia
         <section className="grid grid-cols-2 gap-8 my-8 text-sm">
           <div>
             <h2 className="font-bold mb-2">Заказчик:</h2>
-            <p><strong>Компания:</strong> {userData.companyName || 'Не указано'}</p>
             <p><strong>ИНН:</strong> {userData.inn || 'Не указано'}</p>
-            <p><strong>Контактное лицо:</strong> {userData.firstName || ''} {userData.lastName || ''}</p>
+            <p><strong>Имя:</strong> {userData.firstName || 'Не указано'}</p>
             <p><strong>Телефон:</strong> {userData.phoneNumber || 'Не указано'}</p>
             <p><strong>Email:</strong> {userData.email || 'Не указано'}</p>
           </div>
           <div>
             <h2 className="font-bold mb-2">Исполнитель:</h2>
-            <p><strong>Компания:</strong> Тotal Lookas</p>
+            <p><strong>Компания:</strong> Total Lookas</p>
             <p><strong>Адрес:</strong> г. Казань, Россия</p>
             <p><strong>Телефон:</strong> +7 (XXX) XXX-XX-XX</p>
             <p><strong>Email:</strong> totallookas@yandex.ru</p>
@@ -156,7 +153,7 @@ export const CommercialProposalHTML = React.forwardRef<HTMLDivElement, Commercia
         <footer className="mt-12 pt-8 border-t text-xs text-gray-600">
           <p className='mb-4 font-semibold'>* Данное коммерческое предложение носит ознакомительный характер. Подробное КП будет составлено и выслано менеджером.</p>
           <p><strong>Условия оплаты:</strong> 100% предоплата.</p>
-          <p><strong>Срок поставки:</strong> 14-21 рабочих дней с момента согласования макета и оплаты.</p>
+          <p><strong>Срок поставки:</strong> от 30 дней с момента согласования макета и оплаты.</p>
           <p><strong>Срок действия предложения:</strong> 5 рабочих дней.</p>
           <div className="flex justify-between mt-16">
             <div>

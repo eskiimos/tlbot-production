@@ -49,26 +49,20 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
     console.log('📝 Отправка данных формы:', userData);
-    
-    // Проверяем обязательные поля
+    if (!userData.inn?.trim()) {
+      alert('Пожалуйста, укажите ИНН');
+      return;
+    }
     if (!userData.firstName?.trim()) {
       alert('Пожалуйста, укажите имя');
       return;
     }
-    
     if (!userData.phoneNumber?.trim()) {
       alert('Пожалуйста, укажите номер телефона');
       return;
     }
-    
-    if (!userData.email?.trim()) {
-      alert('Пожалуйста, укажите email');
-      return;
-    }
-    
-    // Сохраняем данные в localStorage
+    // Email теперь необязателен
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('tlbot_user_data', JSON.stringify(userData));
@@ -77,7 +71,6 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
         console.error('Ошибка при сохранении данных пользователя:', error);
       }
     }
-    
     onSubmit(userData);
   };
 
@@ -98,43 +91,6 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Имя *
-            </label>
-            <input
-              type="text"
-              value={userData.firstName || ''}
-              onChange={(e) => handleChange('firstName', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Фамилия
-            </label>
-            <input
-              type="text"
-              value={userData.lastName || ''}
-              onChange={(e) => handleChange('lastName', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Название компании
-            </label>
-            <input
-              type="text"
-              value={userData.companyName || ''}
-              onChange={(e) => handleChange('companyName', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
               ИНН *
             </label>
             <input
@@ -143,6 +99,19 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
               onChange={(e) => handleChange('inn', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="1234567890"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Имя *
+            </label>
+            <input
+              type="text"
+              value={userData.firstName || ''}
+              onChange={(e) => handleChange('firstName', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
           </div>
@@ -163,7 +132,7 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email *
+              Email (необязательно)
             </label>
             <input
               type="email"
@@ -171,20 +140,6 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
               onChange={(e) => handleChange('email', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="example@company.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Telegram username
-            </label>
-            <input
-              type="text"
-              value={userData.username || ''}
-              onChange={(e) => handleChange('username', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="@username"
             />
           </div>
 
@@ -193,7 +148,7 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
               type="submit"
               className="flex-1 py-3 bg-[#303030] text-white rounded-lg font-medium hover:bg-[#404040] transition-colors"
             >
-              Создать КП
+              Отправить КП
             </button>
             
             <button
@@ -207,7 +162,7 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
         </form>
 
         <p className="text-xs text-gray-500 mt-4">
-          * Обязательные поля. Данные сохраняются для удобства при повторном использовании.
+          * Обязательные поля: Имя, ИНН, Телефон. Email — опционально.
         </p>
       </div>
     </div>
