@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: tlbot_postgres
+    environment:
+      POSTGRES_DB: tlbot_prod
+      POSTGRES_USER: tlbot
+      POSTGRES_PASSWORD: StrongDbPassword2025
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
+    container_name: tlbot_app
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=200"
+      DATABASE_URL: postgresql://tlbot:StrongDbPassword2025@postgres:5432/tlbot_prod
+      TELEGRAM_BOT_TOKEN: 7482550053:AAEd0XzEb3tkL1pryqkMYXn1YhoqJaMD7N0
+      NEXT_PUBLIC_APP_URL: https://tltltlbot
+      ADMIN_EMAIL: admin@tlbot.local
+      ADMIN_PASSWORD: AdminTLBot2025!
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+volumes:
+  postgres_data:

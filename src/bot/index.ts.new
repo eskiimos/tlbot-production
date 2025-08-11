@@ -1,0 +1,185 @@
+import { Telegraf } from 'telegraf';
+import dotenv from 'dotenv';
+import { prisma } from '../lib/prisma';
+
+// Загружаем переменные окружения
+dotenv.config({ path: '.env.local' });
+
+const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN!);
+
+// Функция для создания/обновления пользователя
+async function upsertUser(ctx: any) {
+  const user = ctx.from;
+  if (!user) return null;
+
+  // В режиме разработки возвращаем объект пользователя без записи в БД
+  if (process.env.NODE_ENV !== 'production') {
+    return {
+      id: 1,
+      telegramId: BigInt(user.id),
+      username: user.username,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      language: user.language_code || 'ru',
+      isPremium: user.is_premium || false,
+      isBot: user.is_bot || false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+  }
+
+  try {
+    const dbUser = await prisma.user.upsert({
+      where: { telegramId: BigInt(user.id) },
+      update: {
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        language: user.language_code || 'ru',
+        isPremium: user.is_premium || false,
+        updatedAt: new Date()
+      },
+      create: {
+        telegramId: BigInt(user.id),
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        language: user.language_code || 'ru',
+        isPremium: user.is_premium || false,
+        isBot: user.is_bot || false
+      }
+    });
+
+    return dbUser;
+  } catch (error) {
+    console.error('Error upserting user:', error);
+    return null;
+  }
+}
+
+// Команда /start
+bot.start(async (ctx) => {
+  const user = await upsertUser(ctx);
+  const firstName = user?.firstName || ctx.from?.first_name || 'друг';
+  const webAppUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+  
+  ctx.reply(
+    `Йоу, привет, ${firstName}! 🤘 Это бот Total Lookas!\n\n` +
+    `Мы создали это мини-приложение, чтобы ты мог легко просматривать и заказывать нашу крутую одежду прямо в Телеграме. ` +
+    `Здесь ты найдешь все наши свежие дропы, сможешь выбрать нужный размер и оформить заказ всего в пару кликов.\n\n` +
+    `Жми на кнопку ниже, чтобы открыть каталог и начать шоппинг! 👇`,
+    {
+      reply_markup: {
+        inline_keyboard: [[
+          {
+            text: '🔥 Открыть приложение',
+            web_app: { url: webAppUrl }
+          }
+        ]]
+      }
+    }
+  );
+});
+
+// Перехватываем все сообщения для повторного предложения открыть приложение
+bot.on('text', async (ctx) => {
+  const user = await upsertUser(ctx);
+  const webAppUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+  
+  // В режиме разработки логируем сообщения
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[DEV] Получено сообщение от ${user?.firstName || ctx.from?.first_name}: ${ctx.message.text}`);
+  }
+  
+  // Отвечаем предложением открыть приложение
+  ctx.reply(
+    `Привет! Чтобы просмотреть и заказать нашу одежду, используй мини-приложение: 👇`,
+    {
+      reply_markup: {
+        inline_keyboard: [[
+          {
+            text: '🔥 Открыть приложение',
+            web_app: { url: webAppUrl }
+          }
+        ]]
+      }
+    }
+  );
+});
+
+// Обработка данных из мини-приложения
+bot.on('web_app_data', async (ctx) => {
+  const user = await upsertUser(ctx);
+  if (!user) return;
+
+  const data = ctx.webAppData?.data?.text() || '{}';
+  console.log('Получены данные из мини-приложения:', data);
+  
+  try {
+    const parsedData = JSON.parse(data);
+    
+    // В режиме разработки логируем данные
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[DEV] Получены данные из приложения:`, parsedData);
+    } else {
+      // В production режиме сохраняем в БД
+      try {
+        await prisma.webAppData.create({
+          data: {
+            userId: user.id,
+            data: parsedData
+          }
+        });
+
+        await prisma.message.create({
+          data: {
+            userId: user.id,
+            content: `Данные из приложения: ${parsedData.message || 'Неизвестно'}`,
+            type: 'WEBAPP_DATA'
+          }
+        });
+      } catch (error) {
+        console.error('Error saving webapp data:', error);
+      }
+    }
+
+    // Отвечаем пользователю
+    ctx.reply(
+      `✅ Мы получили твой заказ!\n\n` +
+      `Спасибо за покупку в Total Lookas. Наш менеджер свяжется с тобой в ближайшее время для подтверждения заказа и уточнения деталей доставки.`
+    );
+  } catch (error) {
+    console.error('Error processing webapp data:', error);
+    ctx.reply('❌ Упс! Что-то пошло не так при обработке данных. Пожалуйста, попробуй еще раз или свяжись с нашей поддержкой.');
+  }
+});
+
+// Функция для запуска бота
+export async function startBot() {
+  try {
+    if (process.env.NODE_ENV !== 'production') {
+      // Запускаем бота через Long Polling только в режиме разработки
+      // Перехватываем ошибки базы данных для локального режима
+      bot.catch((err, ctx) => {
+        console.error('Ошибка при обработке обновления Telegram:', err);
+      });
+      
+      await bot.launch();
+      console.log('Telegram бот запущен в режиме разработки!');
+      
+      // Обработка завершения процесса
+      process.once('SIGINT', () => bot.stop('SIGINT'));
+      process.once('SIGTERM', () => bot.stop('SIGTERM'));
+    } else {
+      // В production режиме просто проверяем подключение к API
+      await bot.telegram.getMe();
+      console.log('Telegram бот готов к обработке webhook запросов!');
+    }
+    return true;
+  } catch (error) {
+    console.error('Ошибка при инициализации бота:', error);
+    return false;
+  }
+}
+
+export default bot;

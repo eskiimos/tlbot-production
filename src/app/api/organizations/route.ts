@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
+  console.log('🚀 POST /api/organizations - запрос получен');
   try {
     const body = await request.json();
-    console.log('Получены данные:', body);
+    console.log('📋 Получены данные организации:', body);
     
     const { contactName, inn, phone, email, user } = body;
 
@@ -80,9 +81,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  console.log('🔍 GET /api/organizations - запрос получен');
   try {
     const { searchParams } = new URL(request.url);
     const telegramId = searchParams.get('telegramId');
+    
+    console.log('📱 Ищем организацию для telegramId:', telegramId);
 
     if (!telegramId) {
       return NextResponse.json(

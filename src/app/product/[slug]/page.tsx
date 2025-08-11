@@ -527,13 +527,15 @@ export default function ProductPage() {
               </svg>
             </button>
             <div className="flex-1 text-center">
-              <Image
-                src="/TLlogo.svg"
-                alt="TL Logo"
-                width={120}
-                height={40}
-                className="h-10 w-auto mx-auto"
-              />
+              <Link href="/catalog" title="На главную">
+                <Image
+                  src="/TLlogo.svg"
+                  alt="TL Logo"
+                  width={120}
+                  height={40}
+                  className="h-10 w-auto mx-auto cursor-pointer"
+                />
+              </Link>
             </div>
             <button 
               onClick={() => {
@@ -677,504 +679,62 @@ export default function ProductPage() {
           </div>
         )}
 
-        {/* Пошаговый бриф товара */}
-        {product.options.length > 0 && (
-          <div className="space-y-4 mb-6">
-            {/* Шаг 1: Количество */}
-            {currentStep === 1 && (
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-medium">1</span>
-                  <h3 className="text-base font-semibold text-[#303030]">Количество</h3>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <button
-                      onClick={decrementQuantity}
-                      className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#303030] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={quantity <= 10}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                      </svg>
-                    </button>
-                    
-                    <span className="text-xl font-semibold text-[#303030] min-w-[3rem] text-center">
-                      {quantity}
-                    </span>
-                    
-                    <button
-                      onClick={incrementQuantity}
-                      className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#303030] transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                    </button>
-                  </div>
-                  
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-[#303030]">
-                      {(currentPrice * quantity).toLocaleString('ru-RU')}₽
-                    </p>
-                    <p className="text-sm text-gray-500">итого</p>
-                    {quantity > 1 && (
-                      <p className="text-xs text-gray-400">
-                        {currentPrice.toLocaleString('ru-RU')}₽ × {quantity}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <p className="text-sm text-gray-500 mt-3">
-                  Минимальный заказ: 10 штук
-                </p>
-              </div>
-            )}
-
-            {/* Шаг 2: Выбор цвета */}
-            {currentStep === 2 && getOptionsByCategory('color').length > 0 && (
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
-                    currentStep === 2 ? 'bg-blue-500 text-white' : 'bg-green-500 text-white'
-                  }`}>
-                    {currentStep === 2 ? '2' : '✓'}
-                  </span>
-                  <h3 className="text-base font-semibold text-[#303030]">Цвет</h3>
-                  {isStepCompleted(2) && <span className="text-green-500 text-sm">✓ Выбрано</span>}
-                </div>
-                <div className="space-y-1">
-                  {getOptionsByCategory('color')
-                    .sort((a, b) => {
-                      // Определяем порядок: стандартные цвета, потом "Индивидуальный"
-                      const order = ['Белый', 'Серый', 'Темно-синий', 'Черный', 'Индивидуальный'];
-                      const indexA = order.indexOf(a.name);
-                      const indexB = order.indexOf(b.name);
-                      
-                      // Если оба элемента в списке порядка
-                      if (indexA !== -1 && indexB !== -1) {
-                        return indexA - indexB;
-                      }
-                      // Если только один в списке, он идёт первым
-                      if (indexA !== -1) return -1;
-                      if (indexB !== -1) return 1;
-                      // Если ни одного в списке, сохраняем исходный порядок
-                      return 0;
-                    })
-                    .map((option) => (
-                    <div
-                      key={option.id}
-                      onClick={() => handleOptionSelect('color', option.id)}
-                      className={`flex justify-between items-center py-2 px-3 rounded-md transition-colors cursor-pointer ${
-                        (selectedOptions.color || []).includes(option.id)
-                          ? 'bg-green-50 border border-green-200'
-                          : 'bg-gray-50 hover:bg-gray-100'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-700">{option.name}</span>
-                        {(selectedOptions.color || []).includes(option.id) && (
-                          <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
-                            выбрано
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Подитог для цвета */}
-                {getCategoryPrice('color') > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">Доплата за цвет:</span>
-                      <span className="font-semibold text-[#303030]">+{getCategoryPrice('color')}₽</span>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Итого */}
-                <div className="mt-3 pt-3 border-t border-gray-300">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">Итого за единицу:</span>
-                    <span className="font-semibold text-[#303030]">{getTotalPriceWithOptions().toLocaleString('ru-RU')}₽</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Шаг 3: Дизайн */}
-            {currentStep === 3 && getOptionsByCategory('design').length > 0 && (
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
-                    currentStep === 3 ? 'bg-blue-500 text-white' : 'bg-green-500 text-white'
-                  }`}>
-                    {currentStep === 3 ? '3' : '✓'}
-                  </span>
-                  <h3 className="text-base font-semibold text-[#303030]">Дизайн</h3>
-                  {isStepCompleted(3) && <span className="text-green-500 text-sm">✓ Выбрано</span>}
-                </div>
-                <div className="space-y-1">
-                  {getOptionsByCategory('design')
-                    .sort((a, b) => {
-                      // "Нужен дизайн" перемещаем в конец
-                      if (a.name === 'Нужен дизайн') return 1;
-                      if (b.name === 'Нужен дизайн') return -1;
-                      return 0;
-                    })
-                    .map((option) => (
-                    <div
-                      key={option.id}
-                      onClick={() => handleOptionSelect('design', option.id)}
-                      className={`flex justify-between items-center py-2 px-3 rounded-md transition-colors cursor-pointer ${
-                        (selectedOptions.design || []).includes(option.id)
-                          ? 'bg-green-50 border border-green-200'
-                          : 'bg-gray-50 hover:bg-gray-100'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-700">{option.name}</span>
-                        {(selectedOptions.design || []).includes(option.id) && (
-                          <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
-                            выбрано
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-sm font-bold text-[#303030]">
-                        {option.name === 'Нужен дизайн' 
-                          ? 'индивидуально' 
-                          : option.price > 0 ? `+${option.price}₽` : 'Бесплатно'
-                        }
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Подитог для дизайна */}
-                {getCategoryPrice('design') > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">Доплата за дизайн:</span>
-                      <span className="font-semibold text-[#303030]">+{getCategoryPrice('design')}₽</span>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Итого */}
-                <div className="mt-3 pt-3 border-t border-gray-300">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">Итого за единицу:</span>
-                    <span className="font-semibold text-[#303030]">{getTotalPriceWithOptions().toLocaleString('ru-RU')}₽</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Шаг 4: Принт/нанесение */}
-            {currentStep === 4 && getOptionsByCategory('print').length > 0 && (
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
-                    currentStep === 4 ? 'bg-blue-500 text-white' : 'bg-green-500 text-white'
-                  }`}>
-                    {currentStep === 4 ? '4' : '✓'}
-                  </span>
-                  <h3 className="text-base font-semibold text-[#303030]">Принт/нанесение</h3>
-                  {isStepCompleted(4) && <span className="text-green-500 text-sm">✓ Выбрано</span>}
-                </div>
-                <div className="space-y-1">
-                  {getOptionsByCategory('print').map((option) => (
-                    <div
-                      key={option.id}
-                      className={`flex justify-between items-center py-2 px-3 rounded-md transition-colors ${
-                        (selectedOptions.print || []).includes(option.id)
-                          ? 'bg-green-50 border border-green-200'
-                          : 'bg-gray-50 hover:bg-gray-100'
-                      }`}
-                    >
-                      <div 
-                        className="flex items-center gap-2 flex-1 cursor-pointer"
-                        onClick={() => handleOptionSelect('print', option.id)}
-                      >
-                        <span className="text-sm font-medium text-gray-700">{option.name}</span>
-                        {(selectedOptions.print || []).includes(option.id) && (
-                          <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
-                            выбрано
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-[#303030]">
-                          {option.price > 0 ? `+${option.price}₽` : 'Бесплатно'}
-                        </span>
-                        {option.price > 0 && (
-                          <div className="relative">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowTooltip(showTooltip === option.id ? null : option.id);
-                              }}
-                              className="w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors"
-                            >
-                              <Image
-                                src="/material-symbols_info-outline.svg"
-                                alt="Информация"
-                                width={20}
-                                height={20}
-                                className="w-full h-full"
-                              />
-                            </button>
-                            {showTooltip === option.id && (
-                              <div className="absolute right-0 top-6 z-10 w-64 p-3 bg-white border border-gray-200 rounded-lg shadow-lg">
-                                <p className="text-sm text-gray-700">
-                                  {option.description || `Подробное описание опции "${option.name}" будет добавлено позже.`}
-                                </p>
-                                <div className="absolute -top-1 right-4 w-2 h-2 bg-white border-l border-t border-gray-200 transform rotate-45"></div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Подитог для принта */}
-                {getCategoryPrice('print') > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">Доплата за принт:</span>
-                      <span className="font-semibold text-[#303030]">+{getCategoryPrice('print')}₽</span>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Итого */}
-                <div className="mt-3 pt-3 border-t border-gray-300">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">Итого за единицу:</span>
-                    <span className="font-semibold text-[#303030]">{getTotalPriceWithOptions().toLocaleString('ru-RU')}₽</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Шаг 5: Бирки и упаковка */}
-            {currentStep === 5 && (
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-medium">5</span>
-                  <h3 className="text-base font-semibold text-[#303030]">Бирки и упаковка</h3>
-                  {isStepCompleted(5) && <span className="text-green-500 text-sm">✓ Выбрано</span>}
-                </div>
-                
-                {/* Бирки и этикетки */}
-                {getOptionsByCategory('label').length > 0 && (
-                  <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-600 mb-2">Бирки и этикетки</h4>
-                    <div className="space-y-1">
-                      {getOptionsByCategory('label').map((option) => (
-                        <div
-                          key={option.id}
-                          className={`flex justify-between items-center py-2 px-3 rounded-md transition-colors ${
-                            (selectedOptions.label || []).includes(option.id)
-                              ? 'bg-green-50 border border-green-200'
-                              : 'bg-gray-50 hover:bg-gray-100'
-                          }`}
-                        >
-                          <div 
-                            className="flex items-center gap-2 flex-1 cursor-pointer"
-                            onClick={() => handleOptionSelect('label', option.id)}
-                          >
-                            <span className="text-sm font-medium text-gray-700">{option.name}</span>
-                            {(selectedOptions.label || []).includes(option.id) && (
-                              <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
-                                выбрано
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-[#303030]">
-                              {option.price > 0 ? `+${option.price}₽` : 'Бесплатно'}
-                            </span>
-                            {option.price > 0 && (
-                              <div className="relative">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowTooltip(showTooltip === option.id ? null : option.id);
-                                  }}
-                                  className="w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors"
-                                >
-                                  <Image
-                                    src="/material-symbols_info-outline.svg"
-                                    alt="Информация"
-                                    width={20}
-                                    height={20}
-                                    className="w-full h-full"
-                                  />
-                                </button>
-                                {showTooltip === option.id && (
-                                  <div className="absolute right-0 top-6 z-10 w-64 p-3 bg-white border border-gray-200 rounded-lg shadow-lg">
-                                    <p className="text-sm text-gray-700">
-                                      {option.description || `Подробное описание опции "${option.name}" будет добавлено позже.`}
-                                    </p>
-                                    <div className="absolute -top-1 right-4 w-2 h-2 bg-white border-l border-t border-gray-200 transform rotate-45"></div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Упаковка */}
-                {getOptionsByCategory('packaging').length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-600 mb-2">Упаковка</h4>
-                    <div className="space-y-1">
-                      {getOptionsByCategory('packaging').map((option) => (
-                        <div
-                          key={option.id}
-                          className={`flex justify-between items-center py-2 px-3 rounded-md transition-colors ${
-                            (selectedOptions.packaging || []).includes(option.id)
-                              ? 'bg-green-50 border border-green-200'
-                              : 'bg-gray-50 hover:bg-gray-100'
-                          }`}
-                        >
-                          <div 
-                            className="flex items-center gap-2 flex-1 cursor-pointer"
-                            onClick={() => handleOptionSelect('packaging', option.id)}
-                          >
-                            <span className="text-sm font-medium text-gray-700">{option.name}</span>
-                            {(selectedOptions.packaging || []).includes(option.id) && (
-                              <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
-                                выбрано
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-[#303030]">
-                              {option.price > 0 ? `+${option.price}₽` : 'Бесплатно'}
-                            </span>
-                            {option.price > 0 && (
-                              <div className="relative">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowTooltip(showTooltip === option.id ? null : option.id);
-                                  }}
-                                  className="w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors"
-                                >
-                                  <Image
-                                    src="/material-symbols_info-outline.svg"
-                                    alt="Информация"
-                                    width={20}
-                                    height={20}
-                                    className="w-full h-full"
-                                  />
-                                </button>
-                                {showTooltip === option.id && (
-                                  <div className="absolute right-0 top-6 z-10 w-64 p-3 bg-white border border-gray-200 rounded-lg shadow-lg">
-                                    <p className="text-sm text-gray-700">
-                                      {option.description || `Подробное описание опции "${option.name}" будет добавлено позже.`}
-                                    </p>
-                                    <div className="absolute -top-1 right-4 w-2 h-2 bg-white border-l border-t border-gray-200 transform rotate-45"></div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Подитог для бирок и упаковки */}
-                {(getCategoryPrice('label') > 0 || getCategoryPrice('packaging') > 0) && (
-                  <div className="mt-4 pt-3 border-t border-gray-200">
-                    <div className="space-y-1 text-sm">
-                      {getCategoryPrice('label') > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Доплата за бирки:</span>
-                          <span className="font-semibold text-[#303030]">+{getCategoryPrice('label')}₽</span>
-                        </div>
-                      )}
-                      {getCategoryPrice('packaging') > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Доплата за упаковку:</span>
-                          <span className="font-semibold text-[#303030]">+{getCategoryPrice('packaging')}₽</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Итого */}
-                <div className="mt-4 pt-3 border-t border-gray-300">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">Итого за единицу:</span>
-                    <span className="font-semibold text-[#303030]">{getTotalPriceWithOptions().toLocaleString('ru-RU')}₽</span>
-                  </div>
-                  <div className="flex justify-between items-center mt-2 text-sm">
-                    <span className="text-gray-600">Общая сумма ({quantity} шт):</span>
-                    <span className="font-semibold text-[#303030]">{(getTotalPriceWithOptions() * quantity).toLocaleString('ru-RU')}₽</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Кнопки навигации */}
-            <div className="mt-6 flex justify-between items-center">
+        {/* Количество заказа (единственный шаг) */}
+        <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-medium">1</span>
+            <h3 className="text-base font-semibold text-[#303030]">Количество</h3>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
               <button
-                onClick={() => goToStep(currentStep - 1)}
-                disabled={currentStep === 1}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  currentStep === 1
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
+                onClick={decrementQuantity}
+                className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#303030] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={quantity <= 10}
               >
-                ← Назад
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
               </button>
-
-              <span className="text-sm text-gray-500">
-                Шаг {currentStep} из 5
+              <span className="text-xl font-semibold text-[#303030] min-w-[3rem] text-center">
+                {quantity}
               </span>
-
-              {currentStep === 5 ? (
-                <button
-                  onClick={() => {
-                    // Добавляем товар в корзину
-                    addToCart();
-                    // Показываем модальное окно подтверждения
-                    setShowCartModal(true);
-                  }}
-                  className="px-4 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors"
-                >
-                  В корзину
-                </button>
-              ) : (
-                <button
-                  onClick={() => goToStep(currentStep + 1)}
-                  disabled={!isInitialized || !hasStepSelection(currentStep)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    (!isInitialized || !hasStepSelection(currentStep))
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-blue-500 text-white hover:bg-blue-600'
-                  }`}
-                >
-                  Далее →
-                </button>
+              <button
+                onClick={incrementQuantity}
+                className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#303030] transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </button>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold text-[#303030]">
+                {(currentPrice * quantity).toLocaleString('ru-RU')}₽
+              </p>
+              <p className="text-sm text-gray-500">итого</p>
+              {quantity > 1 && (
+                <p className="text-xs text-gray-400">
+                  {currentPrice.toLocaleString('ru-RU')}₽ × {quantity}
+                </p>
               )}
             </div>
           </div>
-        )}
+          <p className="text-sm text-gray-500 mt-3">Минимальный заказ: 10 штук</p>
+        </div>
+
+        {/* Кнопка добавления в корзину */}
+        <div className="mb-6">
+          <button
+            onClick={() => {
+              addToCart();
+              setShowCartModal(true);
+            }}
+            className="w-full py-3 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors"
+          >
+            В корзину
+          </button>
+        </div>
 
         {/* Описание товара */}
         {product.description && (

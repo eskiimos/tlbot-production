@@ -72,11 +72,23 @@ export default function Catalog() {
     return 'clothing';
   };
 
-  // Фильтрация и сортировка товаров по категории и цене (от минимальной к максимальной)
-  const filteredProducts = (selectedCategory === 'all' 
-    ? products 
-    : products.filter(product => getCategoryForProduct(product.name, product.slug) === selectedCategory)
-  ).sort((a, b) => a.price - b.price);
+  // Помощник для определения «шоппера»
+  const isShopper = (p: Product) =>
+    p.slug?.toLowerCase() === 'shopper' || p.name?.toLowerCase().includes('шоппер');
+
+  // Фильтрация и сортировка товаров по категории и цене (от минимальной к максимальной),
+  // при этом «шоппер» всегда в конце
+  const filteredProducts = (
+    selectedCategory === 'all'
+      ? products
+      : products.filter(product => getCategoryForProduct(product.name, product.slug) === selectedCategory)
+  ).sort((a, b) => {
+    const aShopper = isShopper(a);
+    const bShopper = isShopper(b);
+    if (aShopper && !bShopper) return 1; // a в конец
+    if (!aShopper && bShopper) return -1; // b в конец
+    return a.price - b.price; // обычная сортировка по цене
+  });
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -191,16 +203,8 @@ export default function Catalog() {
           </div>
         ) : (
           <>
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold text-center text-[#303030] mb-4">
-                Создайте коммерческое предложение за пару минут! 
-              </h1>
-              <div className="bg-white rounded-lg p-4 shadow-sm mb-4">
-                <p className="text-gray-700 text-sm leading-relaxed text-center">
-                  Всё просто и быстро: выберите товар, настройте опции (метод нанесения, упаковку, бирки и другие детали), 
-                  добавьте в корзину и отправьте готовое коммерческое предложение прямо в Telegram! 📋✨
-                </p>
-              </div>
+            {/* Удалено промо-сообщение с заголовком и плашкой */}
+            <div className="mb-4">
               <p className="text-center text-gray-500 text-sm">
                 {filteredProducts.length} товар{filteredProducts.length % 10 === 1 && filteredProducts.length !== 11 ? '' : filteredProducts.length % 10 >= 2 && filteredProducts.length % 10 <= 4 && (filteredProducts.length < 10 || filteredProducts.length > 20) ? 'а' : 'ов'} в каталоге
               </p>
@@ -297,6 +301,16 @@ export default function Catalog() {
             )}
           </>
         )}
+      </div>
+      
+      {/* Скрытая ссылка на админку - по клику */}
+      <div 
+        className="text-center text-xs text-gray-400 mt-8 cursor-pointer select-none pb-4"
+        onClick={() => {
+          window.location.href = '/admin';
+        }}
+      >
+        Total Lookas
       </div>
     </div>
   );

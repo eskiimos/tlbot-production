@@ -1,36 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Telegraf } from 'telegraf';
 import { Input } from 'telegraf';
+import { prisma } from '../../../lib/prisma';
 
 export async function POST(request: NextRequest) {
   let file: Blob | null = null;
   let telegramId: string | null = null;
+  let orderData: any = null;
   
   try {
     const formData = await request.formData();
     file = formData.get('file') as Blob | null;
     telegramId = formData.get('telegramId') as string | null;
+    
+    // Получаем данные заказа из формы
+    const orderDataString = formData.get('orderData') as string | null;
+    if (orderDataString) {
+      orderData = JSON.parse(orderDataString);
+    }
 
     if (!file || !telegramId) {
       return NextResponse.json({ error: 'Файл или ID пользователя отсутствуют.' }, { status: 400 });
     }
 
-    // Проверяем, если это тестовый пользователь (для разработки)
-    if (telegramId === '123456789') {
-      console.log('🧪 Тестовый режим: PDF генерация прошла успешно, но отправка в Telegram пропущена');
+    // Проверяем, если это тестовый пользователь без реального ID (для демонстрации)
+    if (telegramId === '123456789' && !process.env.DEBUG_TELEGRAM_ID) {
+      console.log('🧪 Тестовый режим: PDF генерация прошла успешно, но отправка в Telegram пропущена (нет реального ID)');
       return NextResponse.json({ 
         message: 'Файл успешно сгенерирован (тестовый режим).',
         mode: 'development'
       }, { status: 200 });
     }
 
-    // Инициализируем бот для каждого запроса
-    if (!process.env.TELEGRAM_BOT_TOKEN) {
-      console.error('TELEGRAM_BOT_TOKEN не найден в переменных окружения');
-      return NextResponse.json({ error: 'Не настроен токен бота' }, { status: 500 });
-    }
+    // Для локальной разработки проверяем переменную окружения DEBUG_TELEGRAM_ID
+    const debugTelegramId = process.env.DEBUG_TELEGRAM_ID;
+    const isLocalDevelopment = process.env.NODE_ENV === 'development';
     
-    const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+    // В режиме разработки используем реальный ID из переменной окружения
+    if (isLocalDevelopment && debugTelegramId && (telegramId === '123456789' || telegramId !== debugTelegramId)) {
+      console.log(`🧪 Локальная разработка: замена telegramId с ${telegramId} на ${debugTelegramId}`);
+      telegramId = debugTelegramId;
+    }
+
+    // Инициализируем бот здесь, а не глобально
+    const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN || '');
     
     // Преобразуем Blob в Buffer, чтобы Telegraf мог с ним работать
     const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -44,17 +57,80 @@ export async function POST(request: NextRequest) {
         telegramId,
         Input.fromBuffer(fileBuffer, `commercial-proposal-${telegramId}.pdf`),
         {
-          caption: 'Ваше коммерческое предложение готово!',
+          caption: `🎉 Ваше коммерческое предложение готово!\n\n` +
+                  `📋 Это предварительный документ для ознакомления с составом и стоимостью заказа. ` +
+                  `В процессе дальнейшей работы предложение может быть скорректировано в соответствии с вашими пожеланиями.\n\n` +
+                  `💬 Есть вопросы или нужны изменения? Мы всегда готовы обсудить детали и найти идеальное решение для вашего бренда!\n\n` +
+                  `🚀 Total Lookas — превращаем мерч в арт-объекты!`,
         }
       );
       
       console.log(`Документ успешно отправлен, message_id: ${sentMessage.message_id}`);
+      
+      // Создаем заказ в базе данных (только для реальных отправок)
+      if (orderData && telegramId !== '123456789') {
+        try {
+          console.log('📋 Создание заказа в базе данных с данными:', {
+            userId: orderData.userId || telegramId,
+            telegramId: telegramId,
+            customerName: orderData.customerName || 'Не указано',
+            customerEmail: orderData.customerEmail,
+            customerPhone: orderData.customerPhone,
+            customerCompany: orderData.customerCompany,
+            customerInn: orderData.customerInn,
+            totalAmount: orderData.totalAmount || 0
+          });
+          
+          const order = await prisma.order.create({
+            data: {
+              userId: orderData.userId || telegramId,
+              telegramId: telegramId,
+              customerName: orderData.customerName || 'Не указано',
+              customerEmail: orderData.customerEmail,
+              customerPhone: orderData.customerPhone,
+              customerCompany: orderData.customerCompany,
+              customerInn: orderData.customerInn,
+              items: orderData.items || [],
+              totalAmount: orderData.totalAmount || 0,
+              status: 'NEW'
+            }
+          });
+          
+          console.log(`✅ Заказ создан для пользователя ${telegramId}, ID заказа: ${order.id}`);
+          console.log('📊 Созданный заказ:', {
+            id: order.id,
+            customerName: order.customerName,
+            customerEmail: order.customerEmail,
+            customerPhone: order.customerPhone,
+            totalAmount: order.totalAmount
+          });
+        } catch (orderError) {
+          console.error('❌ Ошибка создания заказа:', orderError);
+          // Не прерываем выполнение, так как КП уже отправлено
+        }
+      } else {
+        console.log('ℹ️ Пропуск создания заказа:', {
+          hasOrderData: Boolean(orderData),
+          isTestUser: telegramId === '123456789',
+          telegramId
+        });
+      }
     } catch (telegramError) {
       console.error('Ошибка отправки в Telegram:', telegramError);
       
-      // Добавляем дополнительную диагностику для ошибки Telegram
+      // Проверяем специфичные ошибки Telegram
+      const errorMessage = telegramError instanceof Error ? telegramError.message : 'Неизвестная ошибка Telegram';
+      
+      if (errorMessage.includes('chat not found') || errorMessage.includes('Bad Request')) {
+        return NextResponse.json({ 
+          error: 'Чат с ботом не найден', 
+          details: `Пользователь должен сначала написать боту /start. ID: ${telegramId}`
+        }, { status: 400 });
+      }
+      
+      // Добавляем дополнительную диагностику для других ошибок Telegram
       const telegramErrorDetails = {
-        message: telegramError instanceof Error ? telegramError.message : 'Неизвестная ошибка Telegram',
+        message: errorMessage,
         stack: telegramError instanceof Error ? telegramError.stack : undefined,
         telegramId: telegramId
       };
@@ -63,7 +139,7 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.json({ 
         error: 'Ошибка при отправке в Telegram', 
-        details: telegramErrorDetails.message
+        details: errorMessage
       }, { status: 500 });
     }
 

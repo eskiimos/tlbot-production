@@ -174,3 +174,58 @@ model BotSettings {
 
   @@map("bot_settings")
 }
+
+// Модель заказа для админки
+model Order {
+  id        String   @id @default(cuid())
+  userId    String
+  telegramId String
+  
+  // Информация о пользователе
+  customerName     String
+  customerEmail    String?
+  customerPhone    String?
+  customerCompany  String?
+  customerInn      String?
+  
+  // Информация о заказе
+  items            Json     // Массив товаров из корзины
+  totalAmount      Int      // Общая сумма в копейках
+  
+  // Статус заказа
+  status           OrderStatus @default(NEW)
+  
+  // Файлы
+  proposalFilePath String?  // Путь к файлу КП
+  
+  // Комментарии администратора
+  adminComment     String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("orders")
+}
+
+// Статусы заказов
+enum OrderStatus {
+  NEW           // Новая заявка
+  IN_PROGRESS   // В обработке
+  DESIGN        // На стадии дизайна
+  PRODUCTION    // В производстве
+  READY         // Готов к выдаче
+  COMPLETED     // Завершен
+  CANCELLED     // Отменен
+}
+
+// Модель администратора
+model Admin {
+  id       String @id @default(cuid())
+  username String @unique
+  password String // Хешированный пароль
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
+}

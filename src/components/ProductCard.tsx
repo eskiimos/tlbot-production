@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, TouchEvent } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -21,6 +21,8 @@ interface ProductCardProps {
 export default function ProductCard({ product, isCompact = false }: ProductCardProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
 
   // Fallback изображение если основное не загружается
   const defaultImage = '/products/placeholder.jpg';
@@ -41,11 +43,46 @@ export default function ProductCard({ product, isCompact = false }: ProductCardP
   const goToImage = (index: number) => {
     setCurrentImageIndex(index);
   };
+  
+  // Обработка свайпа
+  const handleTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  
+  const handleTouchMove = (e: TouchEvent<HTMLDivElement>) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+  
+  const handleTouchEnd = () => {
+    if (!touchStartX.current || !touchEndX.current) return;
+    
+    const diff = touchStartX.current - touchEndX.current;
+    const threshold = 50; // минимальное расстояние свайпа
+    
+    if (Math.abs(diff) > threshold && product.images.length > 1) {
+      if (diff > 0) {
+        // Свайп влево
+        nextImage();
+      } else {
+        // Свайп вправо
+        prevImage();
+      }
+    }
+    
+    // Сбрасываем координаты
+    touchStartX.current = null;
+    touchEndX.current = null;
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       {/* Слайдер изображений с квадратным соотношением сторон */}
-      <div className="relative aspect-square bg-white">
+      <div 
+        className="relative aspect-square bg-white touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {!imageError ? (
           <>
             <Image
@@ -55,43 +92,22 @@ export default function ProductCard({ product, isCompact = false }: ProductCardP
               className="object-cover"
               onError={() => setImageError(true)}
               sizes="(max-width: 768px) 100vw, 400px"
+              priority={currentImageIndex === 0} // Приоритет загрузки для первого изображения
             />
             
-            {/* Кнопки навигации */}
+            {/* Пагинация внутри изображения (полупрозрачные точки, активная — овальная) */}
             {product.images.length > 1 && (
-              <>
-                <button
-                  onClick={prevImage}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/20 text-white p-2 rounded-full hover:bg-black/40 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                
-                <button
-                  onClick={nextImage}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/20 text-white p-2 rounded-full hover:bg-black/40 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </>
-            )}
-            
-            {/* Пагинация внутри изображения */}
-            {product.images.length > 1 && (
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex space-x-2">
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex space-x-2 z-10">
                 {product.images.map((_, index) => (
                   <button
                     key={index}
                     onClick={() => goToImage(index)}
-                    className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                    className={`transition-all duration-200 ${
                       index === currentImageIndex
-                        ? 'bg-white shadow-md'
-                        : 'bg-[#C4C4C4] hover:bg-white/80'
+                        ? 'w-6 h-2 rounded-full bg-white/90'
+                        : 'w-2 h-2 rounded-full bg-white/50 hover:bg-white/70'
                     }`}
+                    aria-label={`Изображение ${index + 1} из ${product.images.length}`}
                   />
                 ))}
               </div>

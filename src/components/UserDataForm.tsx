@@ -50,10 +50,29 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('📝 Отправка данных формы:', userData);
+    
+    // Проверяем обязательные поля
+    if (!userData.firstName?.trim()) {
+      alert('Пожалуйста, укажите имя');
+      return;
+    }
+    
+    if (!userData.phoneNumber?.trim()) {
+      alert('Пожалуйста, укажите номер телефона');
+      return;
+    }
+    
+    if (!userData.email?.trim()) {
+      alert('Пожалуйста, укажите email');
+      return;
+    }
+    
     // Сохраняем данные в localStorage
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('tlbot_user_data', JSON.stringify(userData));
+        console.log('💾 Данные сохранены в localStorage');
       } catch (error) {
         console.error('Ошибка при сохранении данных пользователя:', error);
       }
@@ -144,7 +163,7 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+              Email *
             </label>
             <input
               type="email"
@@ -152,6 +171,7 @@ export default function UserDataForm({ onSubmit, onCancel, initialData }: UserDa
               onChange={(e) => handleChange('email', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="example@company.com"
+              required
             />
           </div>
 

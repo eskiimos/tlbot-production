@@ -11,8 +11,10 @@ async function seedProducts() {
       slug: 't-shirt',
       price: 900,
       images: [
-        '/products/t-shirt/black.webp',
-        '/products/t-shirt/white.webp'
+        '/products/t-shirt/IMG_0161_resized.webp',
+        '/products/t-shirt/IMG_0243_resized.webp',
+        '/products/t-shirt/IMG_0249_resized.webp',
+        '/products/t-shirt/IMG_0257_resized.webp'
       ],
       description: 'Стильная футболка TL из качественного хлопка'
     },

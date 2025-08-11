@@ -48,6 +48,117 @@ export default function CartPage() {
   const [isLoadingUserData, setIsLoadingUserData] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{type: 'success' | 'error' | 'test', message: string} | null>(null);
+  const [configExpanded, setConfigExpanded] = useState<{[id: string]: boolean}>({});
+  // Track when cart has been loaded from localStorage to avoid wiping it on first render
+  const [hasLoadedCart, setHasLoadedCart] = useState(false);
+
+  // Данные о продуктах (для градации и опций)
+  type PriceTier = { minQuantity: number; maxQuantity: number | null; price: number };
+  type ProductOptionBrief = { id: string; category: string; name: string; price: number; isActive: boolean; description?: string };
+  type ProductBrief = { slug: string; price: number; priceTiers: PriceTier[]; optionsByCategory: Record<string, ProductOptionBrief[]> };
+  const [productsBySlug, setProductsBySlug] = useState<Record<string, ProductBrief>>({});
+
+  // Состояние модалки опций
+  const [optionsModal, setOptionsModal] = useState<{ itemId: string | null; category: 'design' | 'print' | 'label' | 'packaging' | null }>({ itemId: null, category: null });
+  const [modalSelected, setModalSelected] = useState<string[]>([]);
+
+  // Средняя фиксированная цена за принт
+  const PRINT_FLAT_PRICE = 300;
+
+  // Блокируем скролл фона при открытой модалке
+  const anyModalOpen = !!showUserDataForm || (!!optionsModal.itemId && !!optionsModal.category);
+  useEffect(() => {
+    if (anyModalOpen) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [anyModalOpen]);
+
+  // Помощники расчётов и представления
+  function getTierBasePrice(productSlug: string, quantity: number, fallbackBase: number): number {
+    const key = (productSlug || '').toLowerCase();
+    const product = productsBySlug[key];
+    const tiers = (product?.priceTiers || []).slice().sort((a, b) => a.minQuantity - b.minQuantity);
+    if (tiers.length === 0) return fallbackBase;
+    // Сначала ищем подходящий диапазон
+    for (const t of tiers) {
+      const withinMax = t.maxQuantity === null || quantity <= t.maxQuantity;
+      if (quantity >= t.minQuantity && withinMax) {
+        return Number(t.price || 0);
+      }
+    }
+    // Фоллбек — самый высокий tier, у которого minQuantity <= quantity
+    const eligible = tiers.filter(t => quantity >= t.minQuantity);
+    if (eligible.length > 0) {
+      return Number(eligible[eligible.length - 1].price || 0);
+    }
+    // Иначе минимальная цена/база
+    return Number(tiers[0].price || fallbackBase || 0);
+  }
+
+  function getOptionsByCategory(item: CartItem): Record<'design' | 'print' | 'label' | 'packaging', string[]> {
+    const res: Record<'design' | 'print' | 'label' | 'packaging', string[]> = {
+      design: [],
+      print: [],
+      label: [],
+      packaging: []
+    };
+    for (const d of item.optionsDetails || []) {
+      if (d.category === 'design' || d.category === 'print' || d.category === 'label' || d.category === 'packaging') {
+        res[d.category].push(d.name);
+      }
+    }
+    return res;
+  }
+
+  function getOptionsPrice(item: CartItem): number {
+    // Если подробная конфигурация выключена — не учитываем опции в цене
+    if (!configExpanded[item.id]) return 0;
+    // Дизайн не влияет на цену (индивидуальный подход)
+    return (item.optionsDetails || [])
+      .filter(d => d.category !== 'design')
+      .reduce((sum, d) => sum + Number(d.price || 0), 0);
+  }
+
+  function computeUnitPrice(item: CartItem, quantity: number): number {
+    const base = getTierBasePrice(item.productSlug, quantity, item.basePrice);
+    const options = getOptionsPrice(item);
+    return Number(base) + Number(options);
+  }
+
+  function computeLineTotal(item: CartItem, quantity: number): number {
+    return computeUnitPrice(item, quantity) * quantity;
+  }
+
+  function getTotalItems(): number {
+    return cartItems.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+  }
+
+  function getTotalAmount(): number {
+    return cartItems.reduce((sum, i) => sum + computeLineTotal(i, i.quantity), 0);
+  }
+
+  const { generatePdfBlob, ProposalComponent } = usePDFGenerator({ 
+    cartItems, 
+    userData: userData || {
+      telegramId: '123456789',
+      firstName: '',
+      lastName: '',
+      username: '',
+      phoneNumber: '',
+      email: '',
+      companyName: '',
+      inn: ''
+    }
+  });
 
   // 1. Устанавливаем флаг, что компонент смонтирован
   useEffect(() => {
@@ -70,14 +181,15 @@ export default function CartPage() {
         console.error('Ошибка при загрузке корзины:', error);
       } finally {
         setIsLoading(false);
+        // Mark cart as loaded (even if empty) to let dependent effects run safely
+        setHasLoadedCart(true);
       }
     };
     loadCart();
 
     // Mock Telegram WebApp для разработки
     if (process.env.NODE_ENV === 'development') {
-          // @ts-expect-error Mock Telegram WebApp для разработки
-    window.Telegram = {
+      (window as any).Telegram = {
         WebApp: {
           initDataUnsafe: {
             user: {
@@ -92,10 +204,27 @@ export default function CartPage() {
           ready: () => console.log('Telegram WebApp ready'),
           expand: () => console.log('Telegram WebApp expanded'),
           close: () => console.log('Telegram WebApp closed'),
-          MainButton: { text: '', show: () => {}, hide: () => {}, onClick: () => {} },
+          MainButton: {
+            text: '',
+            color: '#229ED9',
+            textColor: '#FFFFFF',
+            isVisible: false,
+            isActive: true,
+            isProgressVisible: false,
+            setText: () => {},
+            onClick: () => {},
+            offClick: () => {},
+            show: () => {},
+            hide: () => {},
+            enable: () => {},
+            disable: () => {},
+            showProgress: () => {},
+            hideProgress: () => {},
+            setParams: () => {}
+          },
           sendData: () => {}
         }
-      };
+      } as any;
       console.log('🔧 Mock Telegram WebApp инициализирован для разработки');
     }
     loadUserData();
@@ -153,37 +282,29 @@ export default function CartPage() {
     }
   };
 
-  const { generatePdfBlob, ProposalComponent } = usePDFGenerator({ 
-    cartItems, 
-    userData: userData || {
-      telegramId: '123456789',
-      firstName: '',
-      lastName: '',
-      username: '',
-      phoneNumber: '',
-      email: '',
-      companyName: '',
-      inn: ''
-    }
-  });
-
   const handleSendProposal = async () => {
+    return handleSendProposalWithData(userData);
+  };
+
+  const handleSendProposalWithData = async (userDataToUse: UserData | null) => {
     // Проверка наличия данных пользователя
-    if (!userData?.telegramId) {
+    if (!userDataToUse?.telegramId) {
       console.error("ID пользователя не доступен");
-      alert("Ошибка: ID пользователя не найден. Пожалуйста, проверьте данные.");
+      setSendResult({type: 'error', message: 'Ошибка: ID пользователя не найден. Пожалуйста, проверьте данные.'});
       return;
     }
 
-    console.log("Начинаем отправку КП в Telegram...");
+    console.log("Начинаем отправку КП в Telegram с данными:", userDataToUse);
     setIsSending(true);
+    setSendResult(null);
+    
     try {
       // Генерация PDF
       console.log("Генерация PDF...");
       const pdfBlob = await generatePdfBlob();
       if (!pdfBlob) {
         console.error("Не удалось создать PDF файл");
-        alert("Не удалось создать PDF файл.");
+        setSendResult({type: 'error', message: 'Не удалось создать PDF файл.'});
         setIsSending(false);
         return;
       }
@@ -191,11 +312,43 @@ export default function CartPage() {
 
       // Формируем данные для отправки
       const formData = new FormData();
-      const filename = `commercial-proposal-${userData.telegramId}.pdf`;
+      const filename = `commercial-proposal-${userDataToUse.telegramId}.pdf`;
       formData.append('file', new File([pdfBlob], filename, { type: 'application/pdf' }));
-      formData.append('telegramId', userData.telegramId);
+      formData.append('telegramId', userDataToUse.telegramId);
       
-      console.log("Отправка на сервер, telegramId:", userData.telegramId, "filename:", filename);
+      // Добавляем данные заказа
+      const orderData = {
+        userId: userDataToUse.telegramId,
+        customerName: `${userDataToUse.firstName || ''} ${userDataToUse.lastName || ''}`.trim() || 'Не указано',
+        customerEmail: userDataToUse.email || '',
+        customerPhone: userDataToUse.phoneNumber || '',
+        customerCompany: userDataToUse.companyName || '',
+        customerInn: userDataToUse.inn || '',
+        items: cartItems,
+        totalAmount: getTotalAmount() * 100 // Конвертируем в копейки
+      };
+      
+      console.log('📦 Данные заказа для отправки:', orderData);
+      formData.append('orderData', JSON.stringify(orderData));
+      
+      // Отправляем данные через Telegram WebApp, если он доступен
+      if (window.Telegram?.WebApp?.sendData) {
+        try {
+          console.log('📱 Отправляем данные через Telegram WebApp');
+          // Отправляем только основные данные заказа без PDF
+          window.Telegram.WebApp.sendData(JSON.stringify({
+            type: 'commercial_proposal',
+            orderData
+          }));
+          console.log('✅ Данные отправлены в Telegram бот');
+        } catch (telegramError) {
+          console.error('❌ Ошибка отправки через Telegram WebApp:', telegramError);
+        }
+      } else {
+        console.log('⚠️ Telegram WebApp.sendData недоступен, используем только API');
+      }
+      
+      console.log("Отправка на сервер, telegramId:", userDataToUse.telegramId, "filename:", filename);
       const response = await fetch('/api/proposals', {
         method: 'POST',
         body: formData,
@@ -208,9 +361,15 @@ export default function CartPage() {
         console.log("Результат запроса:", result);
         
         if (result.mode === 'development') {
-          alert('🧪 Коммерческое предложение создано! (Тестовый режим - отправка в Telegram пропущена)');
+          setSendResult({
+            type: 'test', 
+            message: '🧪 Коммерческое предложение создано! (Тестовый режим - отправка в Telegram пропущена)'
+          });
         } else {
-          alert('Коммерческое предложение успешно отправлено в ваш Telegram!');
+          setSendResult({
+            type: 'success', 
+            message: '✅ Коммерческое предложение успешно отправлено в ваш Telegram!'
+          });
         }
       } else {
         let errorMessage = 'Неизвестная ошибка';
@@ -219,6 +378,11 @@ export default function CartPage() {
           console.error("Детальная ошибка API:", errorData);
           errorMessage = errorData.details || errorData.error || 'Ошибка сервера';
           
+          // Специальная обработка ошибки "чат не найден"
+          if (errorData.error === 'Чат с ботом не найден') {
+            errorMessage = '🤖 Сначала напишите боту /start в Telegram, а затем попробуйте снова';
+          }
+          
           // Вывод диагностической информации, если есть
           if (errorData.diagnostics) {
             console.error("Диагностика:", errorData.diagnostics);
@@ -226,14 +390,46 @@ export default function CartPage() {
         } catch (e) {
           console.error("Не удалось разобрать JSON ответ с ошибкой:", e);
         }
-        alert(`Ошибка при отправке: ${errorMessage}`);
+        setSendResult({type: 'error', message: `Ошибка при отправке: ${errorMessage}`});
       }
     } catch (error) {
       console.error("Ошибка при отправке КП:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      alert(`Произошла ошибка при отправке: ${errorMessage}`);
+      setSendResult({type: 'error', message: `Произошла ошибка при отправке: ${errorMessage}`});
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Создание и скачивание PDF локально
+  const handleCreateCommercialOffer = async () => {
+    try {
+      setIsGeneratingPDF(true);
+      const pdfBlob = await generatePdfBlob();
+      if (!pdfBlob) return;
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'commercial-proposal.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Не удалось создать/скачать PDF', e);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  // Сабмит формы пользователя и отправка КП
+  const handleFormSubmit = async (data: UserData) => {
+    try {
+      setUserData(data);
+      setShowUserDataForm(false);
+      await handleSendProposalWithData(data);
+    } catch (e) {
+      console.error('Ошибка отправки с данными пользователя', e);
     }
   };
 
@@ -289,16 +485,12 @@ export default function CartPage() {
 
   // Функция для изменения количества товара
   const updateQuantity = (itemId: string, newQuantity: number) => {
-    if (newQuantity < 10) return; // Минимум 10 штук
+    if (newQuantity < 10) return;
 
     const updatedCart = cartItems.map(item => {
       if (item.id === itemId) {
-        const unitPrice = item.totalPrice / item.quantity;
-        return {
-          ...item,
-          quantity: newQuantity,
-          totalPrice: unitPrice * newQuantity
-        };
+        const newTotal = computeLineTotal(item, newQuantity);
+        return { ...item, quantity: newQuantity, totalPrice: newTotal };
       }
       return item;
     });
@@ -307,74 +499,154 @@ export default function CartPage() {
     localStorage.setItem('tlbot_cart', JSON.stringify(updatedCart));
   };
 
-  // Подсчет общей суммы корзины
-  const getTotalAmount = () => {
-    return cartItems.reduce((total, item) => total + item.totalPrice, 0);
-  };
-
-  // Подсчет общего количества товаров
-  const getTotalItems = () => {
-    return cartItems.reduce((total, item) => total + item.quantity, 0);
-  };
-
-  // Функция для получения названий выбранных опций по категориям
-  const getOptionsByCategory = (item: CartItem) => {
-    const categorizedOptions: {[category: string]: string[]} = {};
-    
-    item.optionsDetails.forEach(option => {
-      if (!categorizedOptions[option.category]) {
-        categorizedOptions[option.category] = [];
+  // Загружаем продукты для доступа к priceTiers и опциям
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const res = await fetch(`/api/products?t=${Date.now()}`, { cache: 'no-store' as RequestCache });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.success && Array.isArray(data.products)) {
+          const map: Record<string, ProductBrief> = {};
+          data.products.forEach((p: any) => {
+            const key = (p.slug || '').toString().toLowerCase();
+            const optionsByCategory: Record<string, ProductOptionBrief[]> = {};
+            (p.options || []).forEach((opt: any) => {
+              if (!optionsByCategory[opt.category]) optionsByCategory[opt.category] = [];
+              optionsByCategory[opt.category].push({
+                id: String(opt.id),
+                category: opt.category,
+                name: opt.name,
+                price: Number(opt.price || 0),
+                isActive: !!opt.isActive,
+                description: opt.description || ''
+              });
+            });
+            map[key] = { slug: key, price: p.price, priceTiers: p.priceTiers || [], optionsByCategory };
+          });
+          setProductsBySlug(map);
+        }
+      } catch (e) {
+        console.warn('Не удалось загрузить продукты для корзины', e);
       }
-      categorizedOptions[option.category].push(option.name);
+    };
+    fetchProducts();
+  }, []);
+
+  const openOptionsModal = (itemId: string, category: 'design' | 'print' | 'label' | 'packaging') => {
+    const item = cartItems.find(i => i.id === itemId);
+    if (!item) return;
+    const current = item.selectedOptions?.[category] || [];
+    setModalSelected(current);
+    setOptionsModal({ itemId, category });
+  };
+
+  const closeOptionsModal = () => {
+    setOptionsModal({ itemId: null, category: null });
+    setModalSelected([]);
+  };
+
+  const toggleModalOption = (optionId: string) => {
+    if (!optionsModal.category) return;
+    setModalSelected(prev => {
+      const isSingle = optionsModal.category === 'design';
+      if (isSingle) return [optionId];
+      return prev.includes(optionId) ? prev.filter(id => id !== optionId) : [...prev, optionId];
     });
-
-    return categorizedOptions;
   };
 
-  // Функция для получения суммы доплат за опции
-  const getOptionsPrice = (item: CartItem) => {
-    return item.optionsDetails.reduce((total, option) => total + option.price, 0);
+  const saveModalOptions = () => {
+    const { itemId, category } = optionsModal;
+    if (!itemId || !category) return;
+    const item = cartItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    const slugKey = (item.productSlug || '').toLowerCase();
+    const prod = productsBySlug[slugKey];
+    const opts = (prod?.optionsByCategory?.[category] || []) as ProductOptionBrief[];
+
+    const selectedDetails = modalSelected.map(id => {
+      const found = opts.find(o => o.id === id);
+      return found ? { id: found.id, name: found.name, category: found.category, price: found.price } : null;
+    }).filter(Boolean) as { id: string; name: string; category: string; price: number }[];
+
+    const updatedItem: CartItem = {
+      ...item,
+      selectedOptions: { ...item.selectedOptions, [category]: modalSelected },
+      optionsDetails: [
+        // оставляем другие категории как есть
+        ...item.optionsDetails.filter(o => o.category !== category),
+        // добавляем выбранные из модалки
+        ...selectedDetails
+      ]
+    };
+
+    const newTotal = computeLineTotal(updatedItem, updatedItem.quantity);
+    updatedItem.totalPrice = newTotal;
+
+    const newCart = cartItems.map(ci => ci.id === updatedItem.id ? updatedItem : ci);
+    setCartItems(newCart);
+    localStorage.setItem('tlbot_cart', JSON.stringify(newCart));
+    closeOptionsModal();
   };
 
-  // Функция для обработки создания коммерческого предложения
-  const handleCreateCommercialOffer = async () => {
-    try {
-      if (!userData) {
-        setShowUserDataForm(true);
-        return;
-      }
-      
-      // Проверяем наличие всех обязательных полей
-      const { firstName, phoneNumber, email, companyName, inn } = userData;
-      
-      if (!firstName || !phoneNumber || !email || !companyName || !inn) {
-        setShowUserDataForm(true);
-        return;
-      }
-      
-      await handleSendProposal();
-    } catch (error) {
-      console.error("Ошибка в handleCreateCommercialOffer:", error);
-      alert("Произошла ошибка: " + error);
+  // Переключатель плоской опции принта (+300₽ за единицу)
+  const togglePrint = (itemId: string, enable: boolean) => {
+    const item = cartItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    const updatedDetails = (item.optionsDetails || []).filter(o => o.category !== 'print');
+    if (enable) {
+      updatedDetails.push({ id: 'print-flat', name: 'Принт', category: 'print', price: PRINT_FLAT_PRICE });
     }
+
+    const updatedItem: CartItem = {
+      ...item,
+      selectedOptions: { ...item.selectedOptions, print: enable ? ['print-flat'] : [] },
+      optionsDetails: updatedDetails
+    };
+    updatedItem.totalPrice = computeLineTotal(updatedItem, updatedItem.quantity);
+
+    const newCart = cartItems.map(ci => ci.id === itemId ? updatedItem : ci);
+    setCartItems(newCart);
+    localStorage.setItem('tlbot_cart', JSON.stringify(newCart));
   };
 
-  const handleFormSubmit = (data: UserData) => {
-    const updatedUserData = { ...userData, ...data };
-    setUserData(updatedUserData);
-    // Сохраняем в localStorage на случай перезагрузки страницы
-    localStorage.setItem('tlbot_user_data', JSON.stringify(updatedUserData));
-    setShowUserDataForm(false);
-    // После успешного сохранения данных, инициируем отправку КП
-    // Оборачиваем в setTimeout, чтобы дать React время обновить state и DOM
-    setTimeout(() => {
-      handleSendProposal();
-    }, 100);
+  // Переключатель «Дизайн» (индивидуально, без доплаты)
+  const toggleDesign = (itemId: string, enable: boolean) => {
+    const item = cartItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    const updatedDetails = (item.optionsDetails || []).filter(o => o.category !== 'design');
+    if (enable) {
+      updatedDetails.push({ id: 'design-custom', name: 'Индивидуально', category: 'design', price: 0 });
+    }
+
+    const updatedItem: CartItem = {
+      ...item,
+      selectedOptions: { ...item.selectedOptions, design: enable ? ['design-custom'] : [] },
+      optionsDetails: updatedDetails
+    };
+    updatedItem.totalPrice = computeLineTotal(updatedItem, updatedItem.quantity);
+
+    const newCart = cartItems.map(ci => ci.id === itemId ? updatedItem : ci);
+    setCartItems(newCart);
+    localStorage.setItem('tlbot_cart', JSON.stringify(newCart));
   };
 
-  const handleFormCancel = () => {
-    setShowUserDataForm(false);
-  };
+  // Пересчитываем totalPrice у товаров при переключении подробной конфигурации
+  // Guard to avoid clearing cart in localStorage on first mount before it loads
+  useEffect(() => {
+    if (!hasLoadedCart) return;
+    setCartItems(prev => {
+      const updated = prev.map(item => ({
+        ...item,
+        totalPrice: computeLineTotal(item, item.quantity)
+      }));
+      try { localStorage.setItem('tlbot_cart', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, [configExpanded, hasLoadedCart]);
 
   if (isLoading || !isMounted) {
     return (
@@ -478,7 +750,13 @@ export default function CartPage() {
               {cartItems.map((item) => {
                 const categorizedOptions = getOptionsByCategory(item);
                 const optionsPrice = getOptionsPrice(item);
-                const unitPrice = item.totalPrice / item.quantity;
+                const unitPrice = computeUnitPrice(item, item.quantity);
+                const lineTotal = unitPrice * item.quantity;
+                const baseUnitPrice = getTierBasePrice(item.productSlug, item.quantity, item.basePrice);
+                const printEnabled = (item.optionsDetails || []).some(d => d.category === 'print');
+                const designEnabled = (item.optionsDetails || []).some(d => d.category === 'design');
+                const hasLabels = (categorizedOptions.label?.length || 0) > 0;
+                const hasPackaging = (categorizedOptions.packaging?.length || 0) > 0;
 
                 return (
                   <div key={item.id} className="bg-white rounded-lg p-4 shadow-sm">
@@ -545,82 +823,133 @@ export default function CartPage() {
                       </div>
                     </div>
 
-                    {/* Детализация конфигурации */}
-                    <div className="space-y-3 border-t border-gray-100 pt-4">
-                      <h4 className="text-sm font-medium text-gray-700">Конфигурация товара:</h4>
-                      
-                      {/* Цвет */}
-                      {categorizedOptions.color && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Цвет:</span>
-                          <span className="font-medium">{categorizedOptions.color.join(', ')}</span>
-                        </div>
-                      )}
-
-                      {/* Дизайн */}
-                      {categorizedOptions.design && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Дизайн:</span>
-                          <span className="font-medium">{categorizedOptions.design.join(', ')}</span>
-                        </div>
-                      )}
-
-                      {/* Принт */}
-                      {categorizedOptions.print && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Принт:</span>
-                          <span className="font-medium">{categorizedOptions.print.join(', ')}</span>
-                        </div>
-                      )}
-
-                      {/* Бирки */}
-                      {categorizedOptions.label && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Бирки:</span>
-                          <span className="font-medium">{categorizedOptions.label.join(', ')}</span>
-                        </div>
-                      )}
-
-                      {/* Упаковка */}
-                      {categorizedOptions.packaging && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Упаковка:</span>
-                          <span className="font-medium">{categorizedOptions.packaging.join(', ')}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Детализация цены */}
-                    <div className="space-y-2 border-t border-gray-100 pt-4 mt-4">
-                      <h4 className="text-sm font-medium text-gray-700">Расчет стоимости:</h4>
-                      
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-600">Базовая цена за единицу:</span>
-                        <span className="font-medium">{item.basePrice.toLocaleString('ru-RU')}₽</span>
-                      </div>
-
-                      {optionsPrice > 0 && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Доплата за опции:</span>
-                          <span className="font-medium">+{optionsPrice.toLocaleString('ru-RU')}₽</span>
-                        </div>
-                      )}
-
-                      <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-2">
-                        <span className="text-gray-600">Цена за единицу:</span>
-                        <span className="font-semibold text-[#303030]">{unitPrice.toLocaleString('ru-RU')}₽</span>
-                      </div>
-
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-600">Количество:</span>
-                        <span className="font-medium">{item.quantity} шт</span>
-                      </div>
-
-                      <div className="flex justify-between items-center text-base border-t border-gray-300 pt-2">
-                        <span className="font-semibold text-gray-700">Итого за товар:</span>
-                        <span className="font-bold text-[#303030] text-lg">{item.totalPrice.toLocaleString('ru-RU')}₽</span>
+                    {/* Переключатель «Составить подробное КП» */}
+                    <div className="border-t border-gray-100 pt-3 mt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-[#303030]">Составить подробное КП</span>
+                        <button
+                          type="button"
+                          onClick={() => setConfigExpanded(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                          className={`group w-10 h-6 rounded-full relative transition-colors duration-200 ease-out ${configExpanded[item.id] ? 'bg-green-500' : 'bg-gray-300'}`}
+                          role="switch"
+                          aria-checked={!!configExpanded[item.id]}
+                           aria-label="Переключить конфигурацию"
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ease-out ${configExpanded[item.id] ? 'translate-x-4' : ''} group-active:scale-95`} />
+                        </button>
                       </div>
                     </div>
+
+                    {configExpanded[item.id] && (
+                      <>
+                        {/* Конфигурация товара */}
+                        <div className="space-y-3 border-t border-gray-100 pt-4 mt-3">
+                          <h4 className="text-sm font-medium text-gray-700">Конфигурация товара</h4>
+                          {/* Цвет — скрыт */}
+                          {/* Дизайн */}
+                          <div className="w-full flex justify-between items-center text-sm py-2 px-2 rounded">
+                            <span className="text-gray-600">Дизайн</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-500">
+                                {designEnabled ? 'Индивидуально' : 'Не выбрано'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleDesign(item.id, !designEnabled)}
+                                className={`group w-10 h-6 rounded-full relative transition-colors duration-200 ease-out ${designEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                                role="switch"
+                                aria-checked={designEnabled}
+                                 aria-label="Переключить дизайн"
+                               >
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ease-out ${designEnabled ? 'translate-x-4' : ''} group-active:scale-95`} />
+                               </button>
+                            </div>
+                          </div>
+                          {/* Принт */}
+                          <div className="w-full flex justify-between items-center text-sm py-2 px-2 rounded">
+                            <span className="text-gray-600">Принт</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-500">
+                                {printEnabled ? `+${PRINT_FLAT_PRICE.toLocaleString('ru-RU')}₽` : 'Без нанесения'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => togglePrint(item.id, !printEnabled)}
+                                className={`group w-10 h-6 rounded-full relative transition-colors duration-200 ease-out ${printEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                                role="switch"
+                                aria-checked={printEnabled}
+                                 aria-label="Переключить принт"
+                               >
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ease-out ${printEnabled ? 'translate-x-4' : ''} group-active:scale-95`} />
+                               </button>
+                            </div>
+                          </div>
+                          {/* Бирки (модалка) */}
+                          <button
+                            type="button"
+                            onClick={() => openOptionsModal(item.id, 'label')}
+                            className="w-full flex items-center justify-between text-sm py-2.5 px-3 rounded-md border border-gray-200 hover:bg-gray-50 active:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 cursor-pointer"
+                            aria-haspopup="dialog"
+                            aria-label="Открыть опции «Бирки»"
+                          >
+                            <span className="text-gray-600">Бирки</span>
+                            <span className="flex items-center gap-2">
+                              <span className={`${hasLabels ? 'font-medium text-[#303030]' : 'text-gray-500'} text-right`}>
+                                {hasLabels ? categorizedOptions.label.join(', ') : 'Без дополнительных элементов'}
+                              </span>
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </span>
+                          </button>
+                           {/* Упаковка */}
+                          <button
+                            type="button"
+                            onClick={() => openOptionsModal(item.id, 'packaging')}
+                            className="w-full flex items-center justify-between text-sm py-2.5 px-3 rounded-md border border-gray-200 hover:bg-gray-50 active:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 cursor-pointer"
+                            aria-haspopup="dialog"
+                            aria-label="Открыть опции «Упаковка»"
+                          >
+                            <span className="text-gray-600">Упаковка</span>
+                            <span className="flex items-center gap-2">
+                              <span className={`${hasPackaging ? 'font-medium text-[#303030]' : 'text-gray-500'} text-right`}>
+                                {hasPackaging ? categorizedOptions.packaging.join(', ') : 'Без упаковки'}
+                              </span>
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </span>
+                          </button>
+                        </div>
+
+                        {/* Расчет стоимости */}
+                        <div className="space-y-2 border-t border-gray-100 pt-4 mt-4">
+                          <h4 className="text-sm font-medium text-gray-700">Расчет стоимости</h4>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">Базовая цена за единицу:</span>
+                            <span className="font-medium">{baseUnitPrice.toLocaleString('ru-RU')}₽</span>
+                          </div>
+                          {optionsPrice > 0 && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600">Доплата за опции:</span>
+                              <span className="font-medium">+{optionsPrice.toLocaleString('ru-RU')}₽</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-2">
+                            <span className="text-gray-600">Цена за единицу:</span>
+                            <span className="font-semibold text-[#303030]">{unitPrice.toLocaleString('ru-RU')}₽</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">Количество:</span>
+                            <span className="font-medium">{item.quantity} шт</span>
+                          </div>
+                          <div className="flex justify-between items-center text-base border-t border-gray-300 pt-2">
+                            <span className="font-semibold text-gray-700">Итого за товар:</span>
+                            <span className="font-bold text-[#303030] text-lg">{lineTotal.toLocaleString('ru-RU')}₽</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -634,11 +963,6 @@ export default function CartPage() {
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Товары ({getTotalItems()} шт):</span>
                   <span className="font-medium">{getTotalAmount().toLocaleString('ru-RU')}₽</span>
-                </div>
-                
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Доставка:</span>
-                  <span className="font-medium text-gray-500">уточняется</span>
                 </div>
                 
                 <div className="border-t border-gray-200 pt-3 mt-3">
@@ -674,13 +998,13 @@ export default function CartPage() {
               <button
                 onClick={handleSendProposal}
                 disabled={isGeneratingPDF || isSending}
-                className={`w-full py-4 rounded-lg font-semibold text-lg transition-colors flex items-center justify-center gap-3 ${
+                className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 border ${
                   isGeneratingPDF || isSending
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                    : 'bg-[#229ED9] text-white hover:bg-[#1e88c7]'
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
+                    : 'bg-white text-[#303030] border-gray-300 hover:bg-gray-50 active:bg-gray-100'
                 }`}
               >
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121L9.864 13.63l-2.915-.918c-.636-.194-.648-.636.137-.942L17.926 7.08c.529-.194.99.123.824.73-.001.006-.002.012-.003.018z"/>
                 </svg>
                 {isLoadingUserData 
@@ -690,29 +1014,6 @@ export default function CartPage() {
                     : 'Отправить КП в Telegram'
                 }
               </button>
-
-              {/* Кнопка скачивания PDF */}
-              <button
-                onClick={handleCreateCommercialOffer}
-                disabled={isGeneratingPDF || isSending}
-                className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-                  isGeneratingPDF || isSending
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                    : 'bg-gray-100 text-[#303030] hover:bg-gray-200'
-                }`}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                </svg>
-                {isGeneratingPDF ? 'Создается PDF...' : 'Скачать PDF'}
-              </button>
-              
-              <Link
-                href="/catalog"
-                className="block w-full py-3 bg-gray-50 text-[#303030] rounded-lg font-medium text-center hover:bg-gray-100 transition-colors"
-              >
-                Продолжить покупки
-              </Link>
             </div>
           </>
         )}
@@ -720,7 +1021,7 @@ export default function CartPage() {
 
       {/* Уведомление об удалении с возможностью отмены */}
       {deletedItem && (
-        <div className="fixed bottom-4 left-4 right-4 z-50 max-w-md mx-auto">
+        <div className="fixed bottom-4 left-4 right-4 z-40 max-w-md mx-auto">
           <div className="bg-gray-800 text-white rounded-lg p-4 shadow-2xl">
             <div className="flex items-center justify-between">
               <div className="flex-1">
@@ -730,12 +1031,6 @@ export default function CartPage() {
                 <p className="text-xs text-gray-300 mt-1">
                   {deletedItem.productName}
                 </p>
-              </div>
-              
-              <div className="flex items-center gap-3 ml-4">
-                <div className="text-xs text-gray-300">
-                  {timeLeft}с
-                </div>
                 
                 <button
                   onClick={undoDelete}
@@ -772,13 +1067,64 @@ export default function CartPage() {
 
       {/* Модальное окно для ввода данных пользователя */}
       {showUserDataForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] overscroll-contain">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto">
             <UserDataForm
               onSubmit={handleFormSubmit}
               onCancel={() => setShowUserDataForm(false)}
               initialData={userData || {}}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно выбора опций */}
+      {optionsModal.itemId && optionsModal.category && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] overscroll-contain" onClick={closeOptionsModal}>
+          <div className="bg-white rounded-lg w-full max-w-md p-4 shadow-2xl max-h-[90dvh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-[#303030] mb-3">
+              {optionsModal.category === 'design' && 'Дизайн'}
+              {optionsModal.category === 'print' && 'Принт'}
+              {optionsModal.category === 'label' && 'Бирки'}
+              {optionsModal.category === 'packaging' && 'Упаковка'}
+            </h3>
+            {(() => {
+              const item = cartItems.find(i => i.id === optionsModal.itemId)!;
+              const slugKey = (item.productSlug || '').toLowerCase();
+              const list = (productsBySlug[slugKey]?.optionsByCategory?.[optionsModal.category!] || []).filter(o => o.isActive);
+              const isSingle = optionsModal.category === 'design';
+              return (
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <div className="space-y-2 pr-1">
+                    {list.map(opt => {
+                      const checked = modalSelected.includes(opt.id);
+                      return (
+                        <label key={opt.id} className={`flex items-center justify-between gap-3 p-2 rounded-md border ${checked ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-[#303030]">{opt.name}</span>
+                            <span className="text-xs text-gray-500">{opt.price > 0 ? `+${opt.price.toLocaleString('ru-RU')}₽` : 'Бесплатно'}</span>
+                          </div>
+                          <input
+                            type={isSingle ? 'radio' : 'checkbox'}
+                            name={`opt-${optionsModal.category}`}
+                            checked={checked}
+                            onChange={() => toggleModalOption(opt.id)}
+                            className="w-5 h-5"
+                          />
+                        </label>
+                      );
+                    })}
+                    {list.length === 0 && (
+                      <p className="text-sm text-gray-500">Опции отсутствуют</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+            <div className="mt-4 flex gap-2">
+              <button onClick={saveModalOptions} className="flex-1 py-2 bg-[#303030] text-white rounded-md hover:bg-[#404040]">Готово</button>
+              <button onClick={closeOptionsModal} className="flex-1 py-2 bg-gray-100 text-[#303030] rounded-md hover:bg-gray-200">Отмена</button>
+            </div>
           </div>
         </div>
       )}
