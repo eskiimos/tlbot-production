@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Telegraf, Context, session } from 'telegraf';
+import { Telegraf, Context } from 'telegraf';
 import { prisma } from '../../../lib/prisma';
 
+// Инициализируем бота
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN!);
-
-// Типы для Telegram
-interface UserSession {
-  step?: string;
-}
-
-// Используем простую локальную сессию для webhook режима
-const sessions = new Map<number, UserSession>();
 
 // Функция для создания/обновления пользователя
 async function upsertUser(telegramUser: any) {
@@ -34,7 +27,9 @@ async function upsertUser(telegramUser: any) {
 // Обработчики команд бота
 bot.start(async (ctx: Context) => {
   try {
+    console.log('Bot /start command received');
     const user = await upsertUser(ctx.from!);
+    console.log('User upserted:', user.id);
     
     const welcome = `Привет! 👋
     
@@ -56,6 +51,7 @@ bot.start(async (ctx: Context) => {
     };
 
     await ctx.reply(welcome, { reply_markup: keyboard });
+    console.log('Reply sent successfully');
   } catch (error) {
     console.error('Error in start command:', error);
     await ctx.reply('Произошла ошибка. Попробуйте позже.');
@@ -64,6 +60,7 @@ bot.start(async (ctx: Context) => {
 
 bot.command('webapp', async (ctx: Context) => {
   try {
+    console.log('Bot /webapp command received');
     const user = await upsertUser(ctx.from!);
     
     const keyboard = {
@@ -73,6 +70,7 @@ bot.command('webapp', async (ctx: Context) => {
     };
     
     await ctx.reply('Нажмите на кнопку ниже, чтобы открыть каталог:', { reply_markup: keyboard });
+    console.log('Webapp reply sent successfully');
   } catch (error) {
     console.error('Error in webapp command:', error);
     await ctx.reply('Произошла ошибка. Попробуйте позже.');
@@ -81,6 +79,7 @@ bot.command('webapp', async (ctx: Context) => {
 
 bot.action('contact', async (ctx: Context) => {
   try {
+    console.log('Contact action received');
     await ctx.answerCbQuery();
     await ctx.reply('📞 Свяжитесь с нами:\n\n📧 Email: info@tl-clothing.com\n📱 Telegram: @tl_support\n🌐 Сайт: tl-clothing.com');
   } catch (error) {
@@ -90,6 +89,7 @@ bot.action('contact', async (ctx: Context) => {
 
 bot.action('about', async (ctx: Context) => {
   try {
+    console.log('About action received');
     await ctx.answerCbQuery();
     await ctx.reply('ℹ️ О TL Clothing:\n\nМы специализируемся на производстве качественной одежды. Наша миссия - предоставить вам комфортную и стильную одежду по доступным ценам.\n\n🎯 Индивидуальный подход к каждому заказу\n⚡ Быстрое производство\n💯 Гарантия качества');
   } catch (error) {
@@ -100,6 +100,7 @@ bot.action('about', async (ctx: Context) => {
 // Обработка веб-приложения данных
 bot.on('web_app_data', async (ctx: Context) => {
   try {
+    console.log('Web app data received');
     const user = await upsertUser(ctx.from!);
     const webAppData = ctx.webAppData?.data;
     
@@ -113,6 +114,7 @@ bot.on('web_app_data', async (ctx: Context) => {
       });
       
       await ctx.reply('✅ Спасибо! Ваш заказ принят. Мы свяжемся с вами в ближайшее время.');
+      console.log('Web app data processed successfully');
     }
   } catch (error) {
     console.error('Error processing web app data:', error);
@@ -120,21 +122,39 @@ bot.on('web_app_data', async (ctx: Context) => {
   }
 });
 
+// GET endpoint для проверки статуса
 export async function GET() {
-  return NextResponse.json({ message: 'Telegram bot is running' });
+  console.log('GET /api/bot - Bot webhook endpoint is active');
+  return NextResponse.json({ 
+    message: 'Telegram bot webhook endpoint is active',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV 
+  });
 }
 
+// POST endpoint для обработки webhook
 export async function POST(request: NextRequest) {
   try {
+    console.log('POST /api/bot - Webhook received');
     const body = await request.json();
-    console.log('Webhook received:', body);
+    console.log('Webhook body:', JSON.stringify(body, null, 2));
+    
+    // Проверяем, что токен корректный (базовая безопасность)
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      console.error('TELEGRAM_BOT_TOKEN not configured');
+      return NextResponse.json({ error: 'Bot not configured' }, { status: 500 });
+    }
     
     // Обрабатываем обновление через бота
     await bot.handleUpdate(body);
+    console.log('Webhook processed successfully');
     
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('Error processing webhook:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }

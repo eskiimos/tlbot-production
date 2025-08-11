@@ -2,5 +2,27 @@
   "version": 2,
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "functions": {
+    "src/app/api/bot/route.ts": {
+      "environment": {
+        "VERCEL_FORCE_NO_BUILD_CACHE": "1"
+      }
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/bot",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "POST, GET, OPTIONS"
+        }
+      ]
+    }
+  ]
 }
