@@ -15,6 +15,7 @@
     "db:seed": "npx tsx prisma/seed.ts",
     "webhook:set": "npx tsx scripts/setup-webhook.ts",
     "webhook:remove": "npx tsx scripts/setup-webhook.ts remove",
+    "webhook": "npx tsx src/webhook.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
