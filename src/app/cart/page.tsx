@@ -48,6 +48,8 @@ export default function CartPage() {
   const [isLoadingUserData, setIsLoadingUserData] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<string>('');
   const [sendResult, setSendResult] = useState<{type: 'success' | 'error' | 'test', message: string} | null>(null);
   const [configExpanded, setConfigExpanded] = useState<{[id: string]: boolean}>({});
   // Track when cart has been loaded from localStorage to avoid wiping it on first render
@@ -332,20 +334,91 @@ export default function CartPage() {
       formData.append('orderData', JSON.stringify(orderData));
       
       // Отправляем данные через Telegram WebApp, если он доступен
+      console.log('🔍 Проверяем доступность Telegram WebApp...');
+      console.log('window.Telegram:', !!window.Telegram);
+      console.log('window.Telegram.WebApp:', !!window.Telegram?.WebApp);
+      console.log('window.Telegram.WebApp.sendData:', !!window.Telegram?.WebApp?.sendData);
+      console.log('window.Telegram.WebApp.initDataUnsafe:', window.Telegram?.WebApp?.initDataUnsafe);
+      
+      // Для отладки - показываем пользователю что происходит
+      const debugInfo = {
+        hasTelegram: !!window.Telegram,
+        hasWebApp: !!window.Telegram?.WebApp,
+        hasSendData: !!window.Telegram?.WebApp?.sendData,
+        userId: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'unknown',
+        initData: window.Telegram?.WebApp?.initData || 'empty',
+        platform: window.Telegram?.WebApp?.platform || 'unknown'
+      };
+      
+      console.log('🔍 Debug Info:', debugInfo);
+      setSubmitMessage(`🔍 Debug: ${JSON.stringify(debugInfo, null, 2)}`);
+      
       if (window.Telegram?.WebApp?.sendData) {
         try {
           console.log('📱 Отправляем данные через Telegram WebApp');
-          // Отправляем только основные данные заказа без PDF
-          window.Telegram.WebApp.sendData(JSON.stringify({
+          setIsSubmitting(true);
+          setSubmitMessage('🔄 Отправляем через Telegram WebApp...');
+          
+          const dataToSend = JSON.stringify({
             type: 'commercial_proposal',
-            orderData
-          }));
+            orderData,
+            debug: debugInfo
+          });
+          console.log('📤 Данные для отправки:', dataToSend);
+          window.Telegram.WebApp.sendData(dataToSend);
           console.log('✅ Данные отправлены в Telegram бот');
-        } catch (telegramError) {
+          
+          setSubmitMessage('✅ Отправлено в Telegram! Закройте приложение.');
+          
+          // Не сбрасываем isSubmitting, чтобы пользователь знал что все готово
+        } catch (telegramError: any) {
           console.error('❌ Ошибка отправки через Telegram WebApp:', telegramError);
+          setSubmitMessage(`❌ Ошибка Telegram: ${telegramError.message || 'Неизвестная ошибка'}`);
+          setIsSubmitting(false);
         }
       } else {
         console.log('⚠️ Telegram WebApp.sendData недоступен, используем только API');
+        console.log('🔧 Для тестирования: открывайте приложение через бота, а не напрямую');
+        
+        setSubmitMessage(`⚠️ Telegram WebApp недоступен. Debug: ${JSON.stringify(debugInfo)}`);
+        
+        // Альтернативный способ - отправка через API бота
+        try {
+          console.log('🔄 Пробуем отправить через API...');
+          setSubmitMessage('🔄 Отправляем через API...');
+          
+          const response = await fetch('/api/bot', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              type: 'web_app_data',
+              data: {
+                type: 'commercial_proposal',
+                orderData,
+                debug: debugInfo
+              },
+              user: window.Telegram?.WebApp?.initDataUnsafe?.user || {
+                id: Date.now(), // Временный ID для тестирования
+                first_name: 'Test User'
+              }
+            })
+          });
+          
+          if (response.ok) {
+            console.log('✅ Данные отправлены через API');
+            setSubmitMessage('✅ Данные отправлены через API! Проверьте бота.');
+          } else {
+            console.error('❌ Ошибка API:', response.status);
+            setSubmitMessage(`❌ Ошибка API: ${response.status}`);
+          }
+        } catch (apiError: any) {
+          console.error('❌ Ошибка отправки через API:', apiError);
+          setSubmitMessage(`❌ Ошибка API: ${apiError.message || 'Неизвестная ошибка'}`);
+        }
+        
+        setIsSubmitting(false);
       }
       
       console.log("Отправка на сервер, telegramId:", userDataToUse.telegramId, "filename:", filename);
@@ -997,9 +1070,9 @@ export default function CartPage() {
               {/* Кнопка отправки в Telegram */}
               <button
                 onClick={() => setShowUserDataForm(true)}
-                disabled={isSending}
+                disabled={isSending || isSubmitting}
                 className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 border ${
-                  isSending
+                  (isSending || isSubmitting)
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
                     : 'bg-white text-[#303030] border-gray-300 hover:bg-gray-50 active:bg-gray-100'
                 }`}
@@ -1007,8 +1080,8 @@ export default function CartPage() {
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121L9.864 13.63l-2.915-.918c-.636-.194-.648-.636.137-.942L17.926 7.08c.529-.194.99.123.824.73-.001.006-.002.012-.003.018z"/>
                 </svg>
-                {isSending 
-                  ? 'Отправляем в Telegram...' 
+                {(isSending || isSubmitting)
+                  ? (submitMessage || 'Отправляем в Telegram...') 
                   : 'Отправить КП в Telegram'
                 }
               </button>

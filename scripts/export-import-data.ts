@@ -12,8 +12,12 @@ const localPrisma = new PrismaClient({
   datasources: { db: { url: LOCAL_DATABASE_URL } }
 });
 
-const prodPrisma = new PrismaClient({
-  datasources: { db: { url: PROD_DATABASE_URL } }
+const prodClient = new PrismaClient({
+  datasources: {
+    db: {
+      url: "prisma+postgres://accelerate.prisma-data.net/?api_key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqd3RfaWQiOjEsInNlY3VyZV9rZXkiOiJza19JSmlsZWtPbUVSU1NMNUFqcEk4ZlIiLCJhcGlfa2V5IjoiMDFLMkVONVNGSDRLOFhWMDJZSlFWWldIREoiLCJ0ZW5hbnRfaWQiOiJjZjliOGZiODExMzhkZTNjMWRhMzUyMzZlODgzNjk5ZTkxZGJkZjI4NjBlYTk3YjMyMjA1NDljYWMxMGNkYTZjIiwiaW50ZXJuYWxfc2VjcmV0IjoiMDAyOTI5OTktNjExNy00MjExLTk4NTEtYTg4MWJmNWJlMjlkIn0.nhR7eZJzJ_kUmw6BDUB-Ol4MdHQmxSuMK8A6bEP1_fc"
+    }
+  }
 });
 
 async function exportImportData() {
@@ -61,7 +65,7 @@ async function exportImportData() {
 
     // Импортируем пользователей
     for (const user of users) {
-      await prodPrisma.user.upsert({
+      await prodClient.user.upsert({
         where: { telegramId: user.telegramId },
         create: user,
         update: {
@@ -80,7 +84,7 @@ async function exportImportData() {
     for (const product of products) {
       const { priceTiers, options, ...productData } = product;
       
-      const createdProduct = await prodPrisma.product.upsert({
+      const createdProduct = await prodClient.product.upsert({
         where: { slug: product.slug },
         create: productData,
         update: {
@@ -93,12 +97,12 @@ async function exportImportData() {
       });
 
       // Импортируем ценовые уровни
-      await prodPrisma.priceTier.deleteMany({
+      await prodClient.priceTier.deleteMany({
         where: { productId: createdProduct.id }
       });
       
       for (const tier of priceTiers) {
-        await prodPrisma.priceTier.create({
+        await prodClient.priceTier.create({
           data: {
             productId: createdProduct.id,
             minQuantity: tier.minQuantity,
@@ -109,12 +113,12 @@ async function exportImportData() {
       }
 
       // Импортируем опции товара
-      await prodPrisma.productOption.deleteMany({
+      await prodClient.productOption.deleteMany({
         where: { productId: createdProduct.id }
       });
       
       for (const option of options) {
-        await prodPrisma.productOption.create({
+        await prodClient.productOption.create({
           data: {
             productId: createdProduct.id,
             category: option.category,
@@ -131,7 +135,7 @@ async function exportImportData() {
 
     // Импортируем организации
     for (const org of organizations) {
-      await prodPrisma.organization.upsert({
+      await prodClient.organization.upsert({
         where: { userId: org.userId },
         create: org,
         update: {
@@ -146,7 +150,7 @@ async function exportImportData() {
 
     // Импортируем сообщения
     for (const message of messages) {
-      await prodPrisma.message.create({
+      await prodClient.message.create({
         data: message
       });
     }
@@ -154,7 +158,7 @@ async function exportImportData() {
 
     // Импортируем заказы
     for (const order of orders) {
-      await prodPrisma.order.create({
+      await prodClient.order.create({
         data: {
           userId: order.userId,
           telegramId: order.telegramId,
@@ -175,7 +179,7 @@ async function exportImportData() {
 
     // Импортируем настройки бота
     for (const setting of botSettings) {
-      await prodPrisma.botSettings.upsert({
+      await prodClient.botSettings.upsert({
         where: { key: setting.key },
         create: setting,
         update: { value: setting.value }
@@ -185,7 +189,7 @@ async function exportImportData() {
 
     // Импортируем админов
     for (const admin of admins) {
-      await prodPrisma.admin.upsert({
+      await prodClient.admin.upsert({
         where: { username: admin.username },
         create: admin,
         update: { password: admin.password }
@@ -195,7 +199,7 @@ async function exportImportData() {
 
     // Импортируем данные веб-приложения
     for (const webData of webAppData) {
-      await prodPrisma.webAppData.create({
+      await prodClient.webAppData.create({
         data: {
           userId: webData.userId,
           data: webData.data as any
@@ -211,7 +215,7 @@ async function exportImportData() {
     throw error;
   } finally {
     await localPrisma.$disconnect();
-    await prodPrisma.$disconnect();
+    await prodClient.$disconnect();
   }
 }
 

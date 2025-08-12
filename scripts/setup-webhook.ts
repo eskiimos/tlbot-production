@@ -5,19 +5,19 @@
  */
 
 import { Telegraf } from 'telegraf';
+import dotenv from 'dotenv';
+
+// Загружаем переменные окружения
+dotenv.config({ path: '.env.local' });
 
 async function setupWebhook() {
   const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-  const WEBHOOK_URL = process.env.NEXT_PUBLIC_APP_URL;
+  const WEBHOOK_URL = 'https://tlbot-railway-production.up.railway.app/webhook';
   
   if (!BOT_TOKEN) {
     console.error('❌ TELEGRAM_BOT_TOKEN не найден в переменных окружения');
     process.exit(1);
   }
-  
-  if (!WEBHOOK_URL) {
-    console.error('❌ NEXT_PUBLIC_APP_URL не найден в переменных окружения');
-    process.exit(1);
   }
   
   const bot = new Telegraf(BOT_TOKEN);

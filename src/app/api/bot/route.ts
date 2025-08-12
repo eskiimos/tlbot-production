@@ -135,26 +135,53 @@ export async function GET() {
 // POST endpoint для обработки webhook
 export async function POST(request: NextRequest) {
   try {
-    console.log('POST /api/bot - Webhook received');
+    console.log('🌐 Bot API POST request received');
+    
     const body = await request.json();
-    console.log('Webhook body:', JSON.stringify(body, null, 2));
+    console.log('📨 Request body type:', body.type);
     
-    // Проверяем, что токен корректный (базовая безопасность)
-    if (!process.env.TELEGRAM_BOT_TOKEN) {
-      console.error('TELEGRAM_BOT_TOKEN not configured');
-      return NextResponse.json({ error: 'Bot not configured' }, { status: 500 });
+    // Обработка web_app_data через API (альтернативный способ)
+    if (body.type === 'web_app_data') {
+      console.log('📱 Processing web_app_data via API');
+      
+      const user = await upsertUser(body.user);
+      const webAppData = body.data;
+      
+      if (webAppData) {
+        // Сохраняем данные в базу
+        await prisma.webAppData.create({
+          data: {
+            userId: user.id,
+            data: webAppData,
+          },
+        });
+        
+        console.log('💾 Web app data saved via API for user:', user.id);
+        
+        // Отправляем уведомление в Telegram
+        try {
+          await bot.telegram.sendMessage(
+            body.user.id,
+            '✅ Спасибо! Ваш заказ принят. Мы свяжемся с вами в ближайшее время.'
+          );
+          console.log('✅ Notification sent to user');
+        } catch (telegramError) {
+          console.error('❌ Error sending Telegram notification:', telegramError);
+        }
+        
+        return NextResponse.json({ success: true, message: 'Order received' });
+      }
+      
+      return NextResponse.json({ success: false, message: 'No data provided' }, { status: 400 });
     }
+
+    return NextResponse.json({ success: false, message: 'Unknown request type' }, { status: 400 });
     
-    // Обрабатываем обновление через бота
-    await bot.handleUpdate(body);
-    console.log('Webhook processed successfully');
-    
-    return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Error processing webhook:', error);
+    console.error('❌ Error in bot API:', error);
     return NextResponse.json({ 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      success: false, 
+      message: 'Internal server error' 
     }, { status: 500 });
   }
 }

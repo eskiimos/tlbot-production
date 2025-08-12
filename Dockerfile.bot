@@ -1,4 +1,4 @@
-# Dockerfile для Telegram бота
+# Dockerfile для бота
 FROM node:18-alpine
 
 WORKDIR /app
@@ -6,17 +6,18 @@ WORKDIR /app
 # Копируем package.json и package-lock.json
 COPY package*.json ./
 
-# Копируем prisma схему для генерации клиента  
+# Копируем prisma схему для генерации клиента
 COPY prisma ./prisma/
 
-# Устанавливаем все зависимости
-RUN npm ci
+# Устанавливаем зависимости
+RUN npm ci --only=production
 
 # Генерируем Prisma Client
 RUN npx prisma generate
 
-# Копируем исходный код
+# Копируем исходный код бота
 COPY src/ ./src/
+COPY .env.local .env
 
 # Открываем порт
 EXPOSE 3000
