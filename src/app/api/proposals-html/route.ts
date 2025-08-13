@@ -1,321 +1,158 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Telegraf } from 'telegraf';
 
-// HTML шаблон для коммерческого предложения
-const generateProposalHTML = (cartItems: any[], userData: any) => {
-  const getTotalAmount = () => {
-    return cartItems.reduce((total, item) => total + item.totalPrice, 0);
-  };
+// Simple HTML template for commercial proposal
+function generateProposalHTML(cartItems: any[], userData?: any) {
+  const total = cartItems.reduce((s: number, it: any) => s + (Number(it.totalPrice) || 0), 0);
+  const rows = cartItems
+    .map((it: any, idx: number) => {
+      const qty = Number(it.quantity) || 1;
+      const unit = (Number(it.totalPrice) || 0) / qty;
+      return `
+        <tr>
+          <td>${idx + 1}</td>
+          <td><strong>${it.productName ?? it.name ?? 'Товар'}</strong></td>
+          <td style="text-align:center;">${qty} шт.</td>
+          <td style="text-align:right;">${unit.toLocaleString('ru-RU')} ₽</td>
+          <td style="text-align:right;">${(Number(it.totalPrice) || 0).toLocaleString('ru-RU')} ₽</td>
+        </tr>`;
+    })
+    .join('');
 
-  const getOptionsPrice = (item: any) => {
-    if (!item.detailedProposal) return 0;
-    return item.optionsDetails?.reduce((total: number, option: any) => total + option.price, 0) || 0;
-  };
-
-  const getOptionsByCategory = (item: any) => {
-    const categorizedOptions: { [category: string]: string[] } = {};
-    if (item.optionsDetails) {
-      item.optionsDetails.forEach((option: any) => {
-        if (!categorizedOptions[option.category]) {
-          categorizedOptions[option.category] = [];
-        }
-        categorizedOptions[option.category].push(option.name);
-      });
-    }
-    return categorizedOptions;
-  };
-
-  return `
-<!DOCTYPE html>
+  return `<!doctype html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Коммерческое предложение - Total Lookas</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #fff;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 20px;
-        }
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            color: #000;
-            margin-bottom: 10px;
-        }
-        .subtitle {
-            color: #666;
-            font-size: 14px;
-        }
-        .section {
-            margin-bottom: 25px;
-        }
-        .section-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #000;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        th, td {
-            padding: 8px;
-            text-align: left;
-            border: 1px solid #ddd;
-            font-size: 13px;
-        }
-        th {
-            background-color: #f5f5f5;
-            font-weight: bold;
-        }
-        .price {
-            text-align: right;
-        }
-        .total-row {
-            background-color: #f9f9f9;
-            font-weight: bold;
-        }
-        .contact-info {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 30px;
-        }
-        .customer-info {
-            background-color: #fff;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-        }
-        .note {
-            background-color: #e7f3ff;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 20px;
-            font-size: 14px;
-        }
-        .options {
-            margin-top: 5px;
-            font-size: 12px;
-            color: #666;
-        }
-        .option-category {
-            margin-bottom: 3px;
-        }
-        @media print {
-            body { margin: 0; padding: 15px; }
-            .contact-info { break-inside: avoid; }
-        }
-    </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Коммерческое предложение</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; margin: 0 auto; max-width: 860px; padding: 20px; color: #222; }
+  h1 { font-size: 22px; margin: 0 0 12px; }
+  .muted { color: #666; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 14px; }
+  th, td { border: 1px solid #e5e7eb; padding: 8px; vertical-align: top; }
+  th { background: #111; color: #fff; text-align: center; }
+  tfoot td { font-weight: 700; background: #f5f5f5; }
+</style>
 </head>
 <body>
-    <div class="header">
-        <div class="logo">TOTAL LOOKAS</div>
-        <div class="subtitle">Превращаем мерч в арт-объекты</div>
-    </div>
-
-    <div class="section">
-        <div class="section-title">📋 Коммерческое предложение</div>
-        <p><strong>Дата:</strong> ${new Date().toLocaleDateString('ru-RU')}</p>
-        <p><strong>Номер:</strong> КП-${Date.now().toString().slice(-6)}</p>
-    </div>
-
-    <div class="section">
-        <div class="section-title">👤 Заказчик</div>
-        <div class="customer-info">
-            <p><strong>Имя:</strong> ${userData.firstName || 'Не указано'}</p>
-            ${userData.phoneNumber ? `<p><strong>Телефон:</strong> ${userData.phoneNumber}</p>` : ''}
-            ${userData.email ? `<p><strong>Email:</strong> ${userData.email}</p>` : ''}
-            ${userData.inn ? `<p><strong>ИНН:</strong> ${userData.inn}</p>` : ''}
-        </div>
-    </div>
-
-    <div class="section">
-        <div class="section-title">🛍️ Состав заказа</div>
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 5%;">№</th>
-                    <th style="width: 50%;">Наименование</th>
-                    <th style="width: 10%;">Кол-во</th>
-                    <th style="width: 17.5%;">Цена за ед.</th>
-                    <th style="width: 17.5%;">Сумма</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${cartItems.map((item, index) => {
-                  const categorizedOptions = getOptionsByCategory(item);
-                  const unitPrice = item.totalPrice / item.quantity;
-                  return `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td>
-                            <strong>${item.productName}</strong>
-                            ${item.detailedProposal ? `
-                                <div class="options">
-                                    <div><strong>Базовая цена:</strong> ${item.basePrice.toLocaleString('ru-RU')} ₽</div>
-                                    ${Object.entries(categorizedOptions).map(([category, options]) => `
-                                        <div class="option-category">
-                                            <strong>${category}:</strong> ${(options as string[]).join(', ')}
-                                        </div>
-                                    `).join('')}
-                                    ${getOptionsPrice(item) > 0 ? `<div><strong>Доплаты:</strong> +${getOptionsPrice(item).toLocaleString('ru-RU')} ₽</div>` : ''}
-                                </div>
-                            ` : ''}
-                        </td>
-                        <td style="text-align: center;">${item.quantity} шт.</td>
-                        <td class="price">${unitPrice.toLocaleString('ru-RU')} ₽</td>
-                        <td class="price">${item.totalPrice.toLocaleString('ru-RU')} ₽</td>
-                    </tr>
-                  `;
-                }).join('')}
-                <tr class="total-row">
-                    <td colspan="4"><strong>ИТОГО:</strong></td>
-                    <td class="price"><strong>${getTotalAmount().toLocaleString('ru-RU')} ₽</strong></td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    <div class="note">
-        <strong>📝 Примечание:</strong><br>
-        Это предварительное коммерческое предложение. Окончательная стоимость может быть скорректирована после уточнения всех деталей заказа.
-    </div>
-
-    <div class="contact-info">
-        <div class="section-title">📞 Контактная информация</div>
-        <p><strong>Менеджер:</strong> Андрей Копытин</p>
-        <p><strong>Telegram:</strong> @akopytin</p>
-        <p><strong>Телефон:</strong> +7 (910) 123-45-67</p>
-        <p><strong>Email:</strong> info@totallookas.ru</p>
-        <p><strong>Сайт:</strong> totallookas.ru</p>
-    </div>
-
-    <div style="text-align: center; margin-top: 30px; color: #666; font-size: 12px;">
-        Total Lookas — превращаем мерч в арт-объекты!<br>
-        Сгенерировано ${new Date().toLocaleString('ru-RU')}
-    </div>
+  <h1>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1>
+  <div class="muted">Дата: ${new Date().toLocaleDateString('ru-RU')}</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:6%">№</th>
+        <th style="width:50%">Наименование</th>
+        <th style="width:12%">Кол-во</th>
+        <th style="width:16%">Цена</th>
+        <th style="width:16%">Сумма</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4">ИТОГО</td>
+        <td style="text-align:right;">${total.toLocaleString('ru-RU')} ₽</td>
+      </tr>
+    </tfoot>
+  </table>
+  <p class="muted">Это предварительное КП. Итоговая стоимость может измениться после согласования деталей.</p>
 </body>
-</html>
-  `;
-};
+</html>`;
+}
+
+function escapeMdV2(text: string) {
+  // minimal escaping for MarkdownV2 special chars
+  return text.replace(/[\_\*\[\]\(\)~`>#+\-=|{}\.]/g, (m) => `\\${m}`);
+}
 
 export async function POST(request: NextRequest) {
-  console.log('🚀 API /api/proposals-html вызван');
-  
-  try {
-    const { cartItems, userData } = await request.json();
-    
-    console.log('📦 Получены данные:', {
-      itemsCount: cartItems?.length,
-      hasUserData: Boolean(userData)
-    });
+  const openBotUrl = 'https://t.me/Totallookas_bot';
+  console.log('🚀 POST /api/proposals-html');
 
-    if (!cartItems || !Array.isArray(cartItems)) {
-      return NextResponse.json({ error: 'Данные корзины отсутствуют' }, { status: 400 });
+  try {
+    const contentType = request.headers.get('content-type') || '';
+    let cartItems: any[] = [];
+    let userData: any = undefined;
+
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      cartItems = Array.isArray(body?.cartItems) ? body.cartItems : [];
+      userData = body?.userData;
+      console.log('📦 JSON parsed', { items: cartItems.length, hasUserData: Boolean(userData) });
+    } else if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData();
+      const cartRaw = form.get('cartItems');
+      const userRaw = form.get('userData');
+      const telegramIdRaw = form.get('telegramId');
+      try { cartItems = cartRaw ? JSON.parse(String(cartRaw)) : []; } catch { cartItems = []; }
+      try { userData = userRaw ? JSON.parse(String(userRaw)) : undefined; } catch { userData = undefined; }
+      if (!userData && telegramIdRaw) userData = { telegramId: String(telegramIdRaw) };
+      console.log('📦 FormData parsed', { items: cartItems.length, hasUserData: Boolean(userData), telegramId: userData?.telegramId });
+    } else {
+      return NextResponse.json({ error: 'Unsupported Content-Type' }, { status: 400 });
     }
 
-    // Проверяем токен бота
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
+    }
+
+    const telegramId = userData?.telegramId ? String(userData.telegramId) : '';
+    if (!telegramId) {
+      return NextResponse.json({
+        error: 'Telegram ID is missing',
+        action: 'askUserToOpenBotAndPressStart',
+        openBotUrl,
+      }, { status: 400 });
+    }
+
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
-      console.error('❌ TELEGRAM_BOT_TOKEN не найден');
-      return NextResponse.json({ error: 'Конфигурация бота отсутствует' }, { status: 500 });
+      console.error('❌ Missing TELEGRAM_BOT_TOKEN');
+      return NextResponse.json({ error: 'Bot configuration is missing' }, { status: 500 });
     }
 
-    // Генерируем HTML
-    const htmlContent = generateProposalHTML(cartItems, userData);
-    console.log('✅ HTML сгенерирован, размер:', htmlContent.length, 'символов');
+    const html = generateProposalHTML(cartItems, userData);
+    console.log('✅ HTML generated', { length: html.length });
 
-    // Отправляем HTML как сообщение в Telegram
     const bot = new Telegraf(botToken);
-    
-    const proposalText = `🎉 *Ваше коммерческое предложение готово!*
 
-📋 *Состав заказа:*
-${cartItems.map((item: any, index: number) => 
-  `${index + 1}\\. ${item.productName} \\- ${item.quantity} шт\\. \\(${item.totalPrice.toLocaleString('ru-RU')} ₽\\)`
-).join('\n')}
+    const lines = cartItems.map((it: any, i: number) => `${i + 1}. ${it.productName ?? it.name ?? 'Товар'} — ${Number(it.quantity) || 1} шт.`);
+    const header = 'Ваше коммерческое предложение готово!';
+    const text = [header, '', ...lines].map(escapeMdV2).join('\n');
 
-💰 *Общая сумма:* ${cartItems.reduce((total: number, item: any) => total + item.totalPrice, 0).toLocaleString('ru-RU')} ₽
-
-📞 *Контакты для связи:*
-👤 Менеджер: Андрей Копытин
-📱 Telegram: @akopytin
-☎️ Телефон: \\+7 \\(910\\) 123\\-45\\-67
-📧 Email: info@totallookas\\.ru
-
-💬 Есть вопросы или нужны изменения? Мы всегда готовы обсудить детали\\!
-
-🚀 Total Lookas — превращаем мерч в арт\\-объекты\\!`;
+    console.log('📤 sendMessage', { telegramId, lines: lines.length });
 
     try {
-      const sentMessage = await bot.telegram.sendMessage(
-        userData.telegramId || '228594178',
-        proposalText,
-        { 
-          parse_mode: 'MarkdownV2',
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { 
-                  text: '📄 Подробное КП (HTML)', 
-                  url: `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`
-                }
-              ],
-              [
-                { text: '📞 Связаться с менеджером', url: 'https://t.me/akopytin' }
-              ]
-            ]
-          }
-        }
-      );
-      
-      console.log(`✅ Сообщение успешно отправлено, message_id: ${sentMessage.message_id}`);
-      
-      return NextResponse.json({ 
-        message: 'Коммерческое предложение успешно отправлено!',
-        messageId: sentMessage.message_id,
-        format: 'html'
+      const res = await bot.telegram.sendMessage(telegramId, text, {
+        parse_mode: 'MarkdownV2',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📄 Подробное КП (HTML)', url: `data:text/html;charset=utf-8,${encodeURIComponent(html)}` }],
+            [{ text: '📞 Связаться с менеджером', url: 'https://t.me/akopytin' }],
+          ],
+        },
       });
 
-    } catch (telegramError: any) {
-      console.error('❌ Ошибка отправки в Telegram:', telegramError);
-      
-      const errorMessage = telegramError.message || 'Неизвестная ошибка Telegram';
-      
-      if (errorMessage.includes('chat not found') || errorMessage.includes('Bad Request')) {
-        return NextResponse.json({ 
-          error: 'Чат с ботом не найден', 
-          details: `Пользователь должен сначала написать боту /start. ID: ${userData.telegramId}`
+      console.log('✅ sent', { message_id: (res as any)?.message_id });
+      return NextResponse.json({ ok: true, messageId: (res as any)?.message_id });
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      console.error('❌ Telegram error', msg);
+      const isChatNotFound = /chat not found|bot was blocked|Forbidden/i.test(msg);
+      if (isChatNotFound) {
+        return NextResponse.json({
+          error: 'Чат с ботом не найден или бот заблокирован',
+          hint: 'Откройте бота и нажмите Start, затем повторите отправку',
+          openBotUrl,
+          telegramId,
+          telegramError: msg,
         }, { status: 400 });
       }
-      
-      return NextResponse.json({ 
-        error: 'Ошибка при отправке в Telegram', 
-        details: errorMessage
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Telegram send failed', telegramError: msg }, { status: 502 });
     }
-
-  } catch (error: any) {
-    console.error('❌ Ошибка на сервере:', error);
-    
-    return NextResponse.json({ 
-      error: 'Внутренняя ошибка сервера',
-      details: error.message
-    }, { status: 500 });
+  } catch (err: any) {
+    console.error('❌ Server error', err);
+    return NextResponse.json({ error: 'Internal server error', details: String(err?.message || err) }, { status: 500 });
   }
 }

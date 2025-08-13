@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import UserDataForm from '@/components/UserDataForm';
-import usePDFGenerator from '@/components/PDFGenerator';
 
 interface CartItem {
   id: string;
@@ -185,19 +184,17 @@ export default function CartPage() {
     return cartItems.reduce((sum, i) => sum + computeLineTotal(i, i.quantity), 0);
   }
 
-  const { generatePdfBlob, ProposalComponent } = usePDFGenerator({ 
-    cartItems, 
-    userData: userData || {
-      telegramId: '123456789',
-      firstName: '',
-      lastName: '',
-      username: '',
-      phoneNumber: '',
-      email: '',
-      companyName: '',
-      inn: ''
-    }
-  });
+  // Настраиваем пустые значения для userData по умолчанию
+  const defaultUserData = {
+    telegramId: '123456789',
+    firstName: '',
+    lastName: '',
+    username: '',
+    phoneNumber: '',
+    email: '',
+    companyName: '',
+    inn: ''
+  };
 
   // 1. Устанавливаем флаг, что компонент смонтирован
   useEffect(() => {
@@ -382,16 +379,29 @@ export default function CartPage() {
         console.log('⚠️ Telegram WebApp.sendData недоступен, используем только API');
       }
       
-      console.log("Отправка HTML КП на сервер, telegramId:", userDataToUse.telegramId);
-      const response = await fetch('/api/proposals-html', {
+      console.log("Отправка КП на сервер, telegramId:", userDataToUse.telegramId);
+      
+      // Формируем данные для отправки
+      const formData = new FormData();
+      formData.append('telegramId', userDataToUse.telegramId || '');
+      
+      // Добавляем данные заказа
+      const orderData = {
+        userId: userDataToUse.telegramId,
+        customerName: `${userDataToUse.firstName || ''} ${userDataToUse.lastName || ''}`.trim() || 'Не указано',
+        customerEmail: userDataToUse.email || '',
+        customerPhone: userDataToUse.phoneNumber || '',
+        customerCompany: userDataToUse.companyName || '',
+        customerInn: userDataToUse.inn || '',
+        items: cartItems,
+        totalAmount: getTotalAmount()
+      };
+      
+      formData.append('orderData', JSON.stringify(orderData));
+      
+      const response = await fetch('/api/proposals', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cartItems,
-          userData: userDataToUse
-        }),
+        body: formData
       });
 
       console.log("Ответ сервера:", response.status);
@@ -421,7 +431,7 @@ export default function CartPage() {
           // Собираем детальные логи для модального окна
           detailedLogs = [
             `Статус ответа: ${response.status}`,
-            `URL: /api/proposals-html`,
+            `URL: /api/proposals`,
             `Время: ${new Date().toLocaleString('ru-RU')}`,
             `Telegram ID: ${userDataToUse.telegramId}`,
             `Количество товаров: ${cartItems.length}`,
@@ -441,7 +451,7 @@ export default function CartPage() {
           errorMessage = responseText || `HTTP ${response.status} ошибка`;
           detailedLogs = [
             `Статус ответа: ${response.status}`,
-            `URL: /api/proposals-html`,
+            `URL: /api/proposals`,
             `Время: ${new Date().toLocaleString('ru-RU')}`,
             `Telegram ID: ${userDataToUse.telegramId}`,
             `Количество товаров: ${cartItems.length}`,
@@ -486,7 +496,7 @@ export default function CartPage() {
     if (!userDataToUse?.telegramId) {
       console.log("Данные пользователя отсутствуют, создаем тестовые данные для локального тестирования");
       userDataToUse = {
-        telegramId: '228594178', // Ваш реальный Telegram ID для тестирования
+        telegramId: '123456789', // Тестовый ID для локальной разработки
         username: 'test_user',
         firstName: 'Тест',
         lastName: 'Пользователь',
@@ -503,21 +513,8 @@ export default function CartPage() {
     setSendResult(null);
     
     try {
-      // Генерация PDF
-      console.log("Генерация PDF...");
-      const pdfBlob = await generatePdfBlob();
-      if (!pdfBlob) {
-        console.error("Не удалось создать PDF файл");
-        setSendResult({type: 'error', message: 'Не удалось создать PDF файл.'});
-        setIsSending(false);
-        return;
-      }
-      console.log("PDF успешно создан, размер:", pdfBlob.size);
-
       // Формируем данные для отправки
       const formData = new FormData();
-      const filename = `commercial-proposal-${userDataToUse.telegramId}.pdf`;
-      formData.append('file', new File([pdfBlob], filename, { type: 'application/pdf' }));
       formData.append('telegramId', userDataToUse.telegramId || '');
       
       // Добавляем данные заказа
@@ -552,7 +549,7 @@ export default function CartPage() {
         console.log('⚠️ Telegram WebApp.sendData недоступен, используем только API');
       }
       
-      console.log("Отправка на сервер, telegramId:", userDataToUse.telegramId, "filename:", filename);
+      console.log("Отправка на сервер, telegramId:", userDataToUse.telegramId);
       const response = await fetch('/api/proposals', {
         method: 'POST',
         body: formData,
@@ -595,7 +592,7 @@ export default function CartPage() {
             `URL: /api/proposals`,
             `Время: ${new Date().toLocaleString('ru-RU')}`,
             `Telegram ID: ${userDataToUse.telegramId}`,
-            `Размер файла: ${pdfBlob.size} байт`,
+            `Размер файла: N/A байт`,
             `Ошибка API: ${errorData.error || 'Не указана'}`,
             `Детали: ${errorData.details || 'Не указаны'}`
           ];
@@ -621,7 +618,7 @@ export default function CartPage() {
             `URL: /api/proposals`,
             `Время: ${new Date().toLocaleString('ru-RU')}`,
             `Telegram ID: ${userDataToUse.telegramId}`,
-            `Размер файла: ${pdfBlob.size} байт`,
+            `Размер файла: N/A байт`,
             `Сырой ответ: ${responseText}`,
             `Ошибка парсинга: ${parseError}`
           ];
@@ -664,20 +661,12 @@ export default function CartPage() {
     }
   };
 
-  // Создание и скачивание PDF локально
+  // Создание и скачивание КП локально (больше не используется)
   const handleCreateCommercialOffer = async () => {
     try {
       setIsGeneratingPDF(true);
-      const pdfBlob = await generatePdfBlob();
-      if (!pdfBlob) return;
-      const url = URL.createObjectURL(pdfBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'commercial-proposal.pdf';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      // Функция отключена, так как мы больше не используем PDF
+      setSendResult({type: 'error', message: 'PDF генерация отключена. Используйте отправку через Telegram.'});
     } catch (e) {
       console.error('Не удалось создать/скачать PDF', e);
     } finally {
@@ -927,8 +916,7 @@ export default function CartPage() {
 
   return (
     <div className="min-h-screen bg-[#f8f8f8]">
-      {/* Скрытый компонент для рендеринга HTML для PDF */}
-      {isMounted && ProposalComponent}
+      {/* PDF generation is deprecated — no hidden renderer */}
 
       {/* Хэдер */}
       <header className="bg-white shadow-sm border-b border-gray-200">
@@ -1188,38 +1176,17 @@ export default function CartPage() {
                             <span className="text-gray-600">Упаковка</span>
                             <span className="flex items-center gap-2">
                               <span className={`${hasPackaging ? 'font-medium text-[#303030]' : 'text-gray-500'} text-right`}>
-                                {hasPackaging ? categorizedOptions.packaging.join(', ') : 'Без упаковки'}
+                                {hasPackaging ? categorizedOptions.packaging.join(', ') : 'Без дополнительных элементов'}
                               </span>
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                               </svg>
                             </span>
                           </button>
-                        </div>
-
-                        {/* Расчет стоимости */}
-                        <div className="space-y-2 border-t border-gray-100 pt-4 mt-4">
-                          <h4 className="text-sm font-medium text-gray-700">Расчет стоимости</h4>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Базовая цена за единицу:</span>
-                            <span className="font-medium">{baseUnitPrice.toLocaleString('ru-RU')}₽</span>
-                          </div>
-                          {optionsPrice > 0 && (
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">Доплата за опции:</span>
-                              <span className="font-medium">+{optionsPrice.toLocaleString('ru-RU')}₽</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-2">
-                            <span className="text-gray-600">Цена за единицу:</span>
-                            <span className="font-semibold text-[#303030]">{unitPrice.toLocaleString('ru-RU')}₽</span>
-                          </div>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Количество:</span>
-                            <span className="font-medium">{item.quantity} шт</span>
-                          </div>
-                          <div className="flex justify-between items-center text-base border-t border-gray-300 pt-2">
-                            <span className="font-semibold text-gray-700">Итого за товар:</span>
+                          
+                          {/* Итого по позиции */}
+                          <div className="flex justify-between items-center py-2 mt-2 border-t border-gray-200">
+                            <span className="text-sm text-gray-500">Итого за позицию</span>
                             <span className="font-bold text-[#303030] text-lg">{lineTotal.toLocaleString('ru-RU')}₽</span>
                           </div>
                         </div>
@@ -1322,7 +1289,7 @@ export default function CartPage() {
                   Товар удален из корзины
                 </p>
                 <p className="text-xs text-gray-300 mt-1">
-                  {deletedItem.productName}
+                  {deletedItem?.productName}
                 </p>
                 
                 <button
@@ -1381,39 +1348,44 @@ export default function CartPage() {
               {optionsModal.category === 'label' && 'Бирки'}
               {optionsModal.category === 'packaging' && 'Упаковка'}
             </h3>
-            {(() => {
-              const item = cartItems.find(i => i.id === optionsModal.itemId)!;
-              const slugKey = (item.productSlug || '').toLowerCase();
-              const list = (productsBySlug[slugKey]?.optionsByCategory?.[optionsModal.category!] || []).filter(o => o.isActive);
-              const isSingle = optionsModal.category === 'design';
-              return (
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <div className="space-y-2 pr-1">
-                    {list.map(opt => {
-                      const checked = modalSelected.includes(opt.id);
-                      return (
-                        <label key={opt.id} className={`flex items-center justify-between gap-3 p-2 rounded-md border ${checked ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium text-[#303030]">{opt.name}</span>
-                            <span className="text-xs text-gray-500">{opt.price > 0 ? `+${opt.price.toLocaleString('ru-RU')}₽` : 'Бесплатно'}</span>
-                          </div>
-                          <input
-                            type={isSingle ? 'radio' : 'checkbox'}
-                            name={`opt-${optionsModal.category}`}
-                            checked={checked}
-                            onChange={() => toggleModalOption(opt.id)}
-                            className="w-5 h-5"
-                          />
-                        </label>
-                      );
-                    })}
-                    {list.length === 0 && (
-                      <p className="text-sm text-gray-500">Опции отсутствуют</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="space-y-2 pr-1">
+                {(() => {
+                  if (!optionsModal.itemId) return null;
+                  const item = cartItems.find(i => i.id === optionsModal.itemId);
+                  if (!item) return null;
+                  
+                  const slugKey = (item.productSlug || '').toLowerCase();
+                  if (!productsBySlug[slugKey]?.optionsByCategory?.[optionsModal.category]) return null;
+                  
+                  const activeOptions = productsBySlug[slugKey].optionsByCategory[optionsModal.category].filter(o => o.isActive);
+                  const isSingle = optionsModal.category === 'design';
+                  
+                  if (activeOptions.length === 0) {
+                    return <p className="text-sm text-gray-500">Опции отсутствуют</p>;
+                  }
+
+                  return activeOptions.map(opt => {
+                    const checked = modalSelected.includes(opt.id);
+                    return (
+                      <label key={opt.id} className={`flex items-center justify-between gap-3 p-2 rounded-md border ${checked ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-[#303030]">{opt.name}</span>
+                          <span className="text-xs text-gray-500">{opt.price > 0 ? `+${opt.price.toLocaleString('ru-RU')}₽` : 'Бесплатно'}</span>
+                        </div>
+                        <input
+                          type={isSingle ? 'radio' : 'checkbox'}
+                          name={`opt-${optionsModal.category}`}
+                          checked={checked}
+                          onChange={() => toggleModalOption(opt.id)}
+                          className="w-5 h-5"
+                        />
+                      </label>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
             <div className="mt-4 flex gap-2">
               <button onClick={saveModalOptions} className="flex-1 py-2 bg-[#303030] text-white rounded-md hover:bg-[#404040]">Готово</button>
               <button onClick={closeOptionsModal} className="flex-1 py-2 bg-gray-100 text-[#303030] rounded-md hover:bg-gray-200">Отмена</button>
