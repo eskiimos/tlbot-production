@@ -4,19 +4,35 @@ import { Input } from 'telegraf';
 
 // Упрощенная версия API endpoint для отправки PDF
 export async function POST(request: NextRequest) {
+  console.log('🚀 API /api/proposals вызван');
+  console.log('📍 Environment:', process.env.NODE_ENV);
+  console.log('🔑 Bot token exists:', Boolean(process.env.TELEGRAM_BOT_TOKEN));
+  console.log('🔑 Bot token length:', process.env.TELEGRAM_BOT_TOKEN?.length || 0);
+  
   let file: Blob | null = null;
   let telegramId: string | null = null;
   let orderData: any = null;
   
   try {
+    console.log('📝 Парсинг formData...');
     const formData = await request.formData();
+    console.log('✅ FormData успешно получена');
+    
     file = formData.get('file') as Blob | null;
     telegramId = formData.get('telegramId') as string | null;
+    
+    console.log('📁 File size:', file?.size);
+    console.log('👤 Telegram ID:', telegramId);
     
     // Получаем данные заказа из формы
     const orderDataString = formData.get('orderData') as string | null;
     if (orderDataString) {
-      orderData = JSON.parse(orderDataString);
+      try {
+        orderData = JSON.parse(orderDataString);
+        console.log('📦 Order data parsed successfully');
+      } catch (jsonError) {
+        console.error('❌ Ошибка парсинга orderData JSON:', jsonError);
+      }
     }
 
     console.log('📨 Получен запрос на отправку PDF:', {

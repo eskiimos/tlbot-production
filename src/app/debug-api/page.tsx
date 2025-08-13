@@ -31,7 +31,7 @@ export default function DebugAPIPage() {
       
       const formData = new FormData();
       formData.append('file', new File([blob], 'test.pdf', { type: 'application/pdf' }));
-      formData.append('telegramId', '123456789'); // Тестовый ID
+      formData.append('telegramId', '228594178'); // Ваш реальный Telegram ID
       formData.append('orderData', JSON.stringify({ test: true }));
       
       console.log('📤 Отправляем запрос на /api/proposals');
