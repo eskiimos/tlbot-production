@@ -37,25 +37,44 @@ const CATEGORY_TRANSLATIONS: {[key: string]: string} = {
   'print': 'Печать'
 };
 
-function formatItemOptions(options: {[key: string]: string[]}, showDetails: boolean) {
+function formatItemOptions(
+  options: {[key: string]: string[]}, 
+  showDetails: boolean,
+  optionsDetails: Array<{
+    id: string;
+    name: string;
+    category: string;
+    price: number;
+  }> = []
+): string {
   if (!showDetails || !options) return '';
+
+  // Создаем мапу для быстрого поиска названий опций по ID
+  const optionsMap = new Map(optionsDetails.map(opt => [opt.id, opt]));
   
-  return Object.entries(options).map(([category, values]) => {
-    const translatedCategory = CATEGORY_TRANSLATIONS[category] || category;
-    const translatedValues = values.map(value => 
-      value.startsWith('cme15m') ? 'Индивидуально' : value
-    ).join(', ');
-    
-    return `
-      <div class="option-group">
-        <strong>${translatedCategory}:</strong>
-        ${translatedValues}
-      </div>
-    `;
-  }).join('');
+  // Фильтруем и форматируем опции, исключая цвет
+  return Object.entries(options)
+    .filter(([category]) => category !== 'color') // Исключаем опцию цвета
+    .map(([category, values]) => {
+      const translatedCategory = CATEGORY_TRANSLATIONS[category] || category;
+      const translatedValues = values.map(value => {
+        if (optionsMap.has(value)) {
+          return optionsMap.get(value)?.name || value;
+        }
+        return value.startsWith('cmd') ? 'Индивидуально' : value;
+      }).join(', ');
+      
+      return `
+        <div class="option-group">
+          <strong>${translatedCategory}:</strong>
+          ${translatedValues}
+        </div>
+      `;
+    })
+    .join('');
 }
 
-// Экспортируем как обычную функцию, а не как default
+// Экспортируем функцию генерации HTML
 export function generateProposalHTML(data: ProposalData): string {
   const { orderData, cartItems, userData } = data;
   const date = new Date().toLocaleDateString('ru-RU');
@@ -232,7 +251,7 @@ export function generateProposalHTML(data: ProposalData): string {
       </div>
 
       <div class="product-list">
-        ${cartItems.map((item, index) => `
+        ${cartItems.map((item) => `
           <div class="product-item">
             ${item.image ? `
               <img 
@@ -250,7 +269,7 @@ export function generateProposalHTML(data: ProposalData): string {
                 <div class="option-group">
                   <strong>Цена за единицу:</strong> ${item.basePrice.toLocaleString('ru-RU')} ₽
                 </div>
-                ${formatItemOptions(item.selectedOptions, item.detailedProposal || false)}
+                ${formatItemOptions(item.selectedOptions, item.detailedProposal || false, item.optionsDetails)}
               </div>
             </div>
             <div class="product-total">
@@ -278,6 +297,7 @@ export function generateProposalHTML(data: ProposalData): string {
       <div class="note">
         <p><strong>Примечание:</strong></p>
         <p>Цены указаны с учетом всех выбранных опций. Окончательная стоимость может быть скорректирована после согласования макета и уточнения деталей заказа.</p>
+        <p><strong>Цвет изделий согласовывается с менеджером отдельно.</strong></p>
       </div>
 
       <div class="footer">
