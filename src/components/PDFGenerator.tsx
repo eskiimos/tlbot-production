@@ -20,6 +20,7 @@ interface CartItem {
   }[];
   totalPrice: number;
   image?: string;
+  detailedProposal?: boolean; // Требуется ли подробное КП для этой позиции
 }
 
 interface UserData {

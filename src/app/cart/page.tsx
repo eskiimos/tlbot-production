@@ -22,6 +22,7 @@ interface CartItem {
   }[];
   totalPrice: number;
   image?: string;
+  detailedProposal?: boolean; // Требуется ли подробное КП для этой позиции
 }
 
 interface UserData {
@@ -121,7 +122,7 @@ export default function CartPage() {
 
   function getOptionsPrice(item: CartItem): number {
     // Если подробная конфигурация выключена — не учитываем опции в цене
-    if (!configExpanded[item.id]) return 0;
+    if (!item.detailedProposal) return 0;
     // Дизайн не влияет на цену (индивидуальный подход)
     return (item.optionsDetails || [])
       .filter(d => d.category !== 'design')
@@ -291,7 +292,7 @@ export default function CartPage() {
     if (!userDataToUse?.telegramId) {
       console.log("Данные пользователя отсутствуют, создаем тестовые данные для локального тестирования");
       userDataToUse = {
-        telegramId: '123456789', // Тестовый ID
+        telegramId: '228594178', // Ваш реальный Telegram ID для тестирования
         username: 'test_user',
         firstName: 'Тест',
         lastName: 'Пользователь',
@@ -323,7 +324,7 @@ export default function CartPage() {
       const formData = new FormData();
       const filename = `commercial-proposal-${userDataToUse.telegramId}.pdf`;
       formData.append('file', new File([pdfBlob], filename, { type: 'application/pdf' }));
-      formData.append('telegramId', userDataToUse.telegramId);
+      formData.append('telegramId', userDataToUse.telegramId || '');
       
       // Добавляем данные заказа
       const orderData = {
@@ -838,18 +839,30 @@ export default function CartPage() {
                         <span className="text-sm font-medium text-[#303030]">Составить подробное КП</span>
                         <button
                           type="button"
-                          onClick={() => setConfigExpanded(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
-                          className={`group w-10 h-6 rounded-full relative transition-colors duration-200 ease-out ${configExpanded[item.id] ? 'bg-green-500' : 'bg-gray-300'}`}
+                          onClick={() => {
+                            // Обновляем состояние товара с новым значением detailedProposal
+                            const updatedCart = cartItems.map(cartItem => 
+                              cartItem.id === item.id 
+                                ? { ...cartItem, detailedProposal: !cartItem.detailedProposal }
+                                : cartItem
+                            );
+                            setCartItems(updatedCart);
+                            localStorage.setItem('tlbot_cart', JSON.stringify(updatedCart));
+                            
+                            // Также обновляем состояние для UI конфигурации
+                            setConfigExpanded(prev => ({ ...prev, [item.id]: !item.detailedProposal }));
+                          }}
+                          className={`group w-10 h-6 rounded-full relative transition-colors duration-200 ease-out ${item.detailedProposal ? 'bg-green-500' : 'bg-gray-300'}`}
                           role="switch"
-                          aria-checked={!!configExpanded[item.id]}
-                           aria-label="Переключить конфигурацию"
+                          aria-checked={!!item.detailedProposal}
+                           aria-label="Переключить подробное КП"
                         >
-                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ease-out ${configExpanded[item.id] ? 'translate-x-4' : ''} group-active:scale-95`} />
+                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ease-out ${item.detailedProposal ? 'translate-x-4' : ''} group-active:scale-95`} />
                         </button>
                       </div>
                     </div>
 
-                    {configExpanded[item.id] && (
+                    {item.detailedProposal && (
                       <>
                         {/* Конфигурация товара */}
                         <div className="space-y-3 border-t border-gray-100 pt-4 mt-3">
