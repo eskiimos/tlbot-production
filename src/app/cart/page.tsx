@@ -53,6 +53,21 @@ export default function CartPage() {
   const [configExpanded, setConfigExpanded] = useState<{[id: string]: boolean}>({});
   // Track when cart has been loaded from localStorage to avoid wiping it on first render
   const [hasLoadedCart, setHasLoadedCart] = useState(false);
+  
+  // Состояние модального окна с ошибкой
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    logs: string[];
+    timestamp: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    logs: [],
+    timestamp: ''
+  });
 
   // Данные о продуктах (для градации и опций)
   type PriceTier = { minQuantity: number; maxQuantity: number | null; price: number };
@@ -68,7 +83,7 @@ export default function CartPage() {
   const PRINT_FLAT_PRICE = 300;
 
   // Блокируем скролл фона при открытой модалке
-  const anyModalOpen = !!showUserDataForm || (!!optionsModal.itemId && !!optionsModal.category);
+  const anyModalOpen = !!showUserDataForm || (!!optionsModal.itemId && !!optionsModal.category) || errorModal.isOpen;
   useEffect(() => {
     if (anyModalOpen) {
       document.body.style.overflow = 'hidden';
@@ -82,6 +97,29 @@ export default function CartPage() {
       document.documentElement.style.overflow = '';
     };
   }, [anyModalOpen]);
+
+  // Обработка клавиши ESC для закрытия модальных окон
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (errorModal.isOpen) {
+          setErrorModal(prev => ({ ...prev, isOpen: false }));
+        } else if (showUserDataForm) {
+          setShowUserDataForm(false);
+        } else if (optionsModal.itemId && optionsModal.category) {
+          setOptionsModal({ itemId: null, category: null });
+        }
+      }
+    };
+
+    if (anyModalOpen) {
+      document.addEventListener('keydown', handleEscapeKey);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [anyModalOpen, errorModal.isOpen, showUserDataForm, optionsModal.itemId, optionsModal.category]);
 
   // Помощники расчётов и представления
   function getTierBasePrice(productSlug: string, quantity: number, fallbackBase: number): number {
@@ -230,6 +268,24 @@ export default function CartPage() {
     }
     loadUserData();
   }, [isMounted]);
+
+  // Функция для показа модального окна с ошибкой и логами
+  const showErrorModal = (title: string, message: string, logs: string[] = []) => {
+    const timestamp = new Date().toLocaleString('ru-RU');
+    setErrorModal({
+      isOpen: true,
+      title,
+      message,
+      logs,
+      timestamp
+    });
+    
+    // Логируем ошибку в консоль для отладки
+    console.error(`❌ [${timestamp}] ${title}:`, message);
+    if (logs.length > 0) {
+      console.error('📋 Детальные логи:', logs);
+    }
+  };
 
   // Функция для загрузки данных пользователя
   const loadUserData = async () => {
@@ -383,28 +439,70 @@ export default function CartPage() {
         }
       } else {
         let errorMessage = 'Неизвестная ошибка';
+        let detailedLogs: string[] = [];
+        
         try {
           const errorData = await response.json();
           console.error("Детальная ошибка API:", errorData);
           errorMessage = errorData.details || errorData.error || 'Ошибка сервера';
           
+          // Собираем детальные логи для модального окна
+          detailedLogs = [
+            `Статус ответа: ${response.status}`,
+            `URL: /api/proposals`,
+            `Время: ${new Date().toLocaleString('ru-RU')}`,
+            `Telegram ID: ${userDataToUse.telegramId}`,
+            `Размер файла: ${pdfBlob.size} байт`,
+            `Ошибка API: ${errorData.error || 'Не указана'}`,
+            `Детали: ${errorData.details || 'Не указаны'}`
+          ];
+          
+          // Добавляем диагностику, если есть
+          if (errorData.diagnostics) {
+            console.error("Диагностика:", errorData.diagnostics);
+            detailedLogs.push(`Диагностика: ${JSON.stringify(errorData.diagnostics, null, 2)}`);
+          }
+          
           // Специальная обработка ошибки "чат не найден"
           if (errorData.error === 'Чат с ботом не найден') {
             errorMessage = '🤖 Сначала напишите боту /start в Telegram, а затем попробуйте снова';
           }
-          
-          // Вывод диагностической информации, если есть
-          if (errorData.diagnostics) {
-            console.error("Диагностика:", errorData.diagnostics);
-          }
         } catch (e) {
           console.error("Не удалось разобрать JSON ответ с ошибкой:", e);
+          detailedLogs.push(`Ошибка парсинга ответа: ${e}`);
         }
+        
+        // Показываем модальное окно с ошибкой
+        showErrorModal(
+          'Ошибка отправки КП',
+          errorMessage,
+          detailedLogs
+        );
         setSendResult({type: 'error', message: `Ошибка при отправке: ${errorMessage}`});
       }
     } catch (error) {
       console.error("Ошибка при отправке КП:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Собираем логи для модального окна
+      const errorLogs = [
+        `Время: ${new Date().toLocaleString('ru-RU')}`,
+        `Тип ошибки: ${error instanceof Error ? error.constructor.name : typeof error}`,
+        `Сообщение: ${errorMessage}`,
+        `Stack: ${error instanceof Error ? error.stack || 'Не доступен' : 'Не доступен'}`,
+        `Пользователь: ${userDataToUse.firstName} ${userDataToUse.lastName}`,
+        `Telegram ID: ${userDataToUse.telegramId}`,
+        `Количество товаров в корзине: ${cartItems.length}`,
+        `Общая сумма: ${getTotalAmount()} ₽`
+      ];
+      
+      // Показываем модальное окно с ошибкой
+      showErrorModal(
+        'Критическая ошибка при отправке КП',
+        `Произошла непредвиденная ошибка: ${errorMessage}`,
+        errorLogs
+      );
+      
       setSendResult({type: 'error', message: `Произошла ошибка при отправке: ${errorMessage}`});
     } finally {
       setIsSending(false);
@@ -1148,6 +1246,64 @@ export default function CartPage() {
             <div className="mt-4 flex gap-2">
               <button onClick={saveModalOptions} className="flex-1 py-2 bg-[#303030] text-white rounded-md hover:bg-[#404040]">Готово</button>
               <button onClick={closeOptionsModal} className="flex-1 py-2 bg-gray-100 text-[#303030] rounded-md hover:bg-gray-200">Отмена</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно с ошибкой и логами */}
+      {errorModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] overscroll-contain">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90dvh] shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{errorModal.title}</h3>
+                  <p className="text-sm text-gray-500">{errorModal.timestamp}</p>
+                </div>
+              </div>
+              <p className="text-gray-700">{errorModal.message}</p>
+            </div>
+            
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <div className="p-6 pb-3">
+                <h4 className="text-sm font-medium text-gray-900 mb-3">Техническая информация:</h4>
+              </div>
+              <div className="flex-1 px-6 overflow-y-auto">
+                <div className="bg-gray-50 rounded-lg p-4 font-mono text-xs leading-relaxed">
+                  {errorModal.logs.map((log, index) => (
+                    <div key={index} className="mb-1 text-gray-700">
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 pt-3 border-t border-gray-200">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `${errorModal.title}\n${errorModal.message}\n\nЛоги:\n${errorModal.logs.join('\n')}`
+                    );
+                  }}
+                  className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                >
+                  📋 Скопировать логи
+                </button>
+                <button
+                  onClick={() => setErrorModal(prev => ({ ...prev, isOpen: false }))}
+                  className="flex-1 px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                >
+                  Закрыть
+                </button>
+              </div>
             </div>
           </div>
         </div>
