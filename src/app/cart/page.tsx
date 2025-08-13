@@ -441,8 +441,13 @@ export default function CartPage() {
         let errorMessage = 'Неизвестная ошибка';
         let detailedLogs: string[] = [];
         
+        // Сначала получаем текст ответа
+        const responseText = await response.text();
+        console.error("Ответ сервера (текст):", responseText);
+        
         try {
-          const errorData = await response.json();
+          // Пытаемся парсить как JSON
+          const errorData = JSON.parse(responseText);
           console.error("Детальная ошибка API:", errorData);
           errorMessage = errorData.details || errorData.error || 'Ошибка сервера';
           
@@ -467,9 +472,21 @@ export default function CartPage() {
           if (errorData.error === 'Чат с ботом не найден') {
             errorMessage = '🤖 Сначала напишите боту /start в Telegram, а затем попробуйте снова';
           }
-        } catch (e) {
-          console.error("Не удалось разобрать JSON ответ с ошибкой:", e);
-          detailedLogs.push(`Ошибка парсинга ответа: ${e}`);
+        } catch (parseError) {
+          console.error("Не удалось разобрать JSON ответ с ошибкой:", parseError);
+          console.error("Сырой ответ:", responseText);
+          
+          // Если не JSON, используем сырой текст
+          errorMessage = responseText || `HTTP ${response.status} ошибка`;
+          detailedLogs = [
+            `Статус ответа: ${response.status}`,
+            `URL: /api/proposals`,
+            `Время: ${new Date().toLocaleString('ru-RU')}`,
+            `Telegram ID: ${userDataToUse.telegramId}`,
+            `Размер файла: ${pdfBlob.size} байт`,
+            `Сырой ответ: ${responseText}`,
+            `Ошибка парсинга: ${parseError}`
+          ];
         }
         
         // Показываем модальное окно с ошибкой
