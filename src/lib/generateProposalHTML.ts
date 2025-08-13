@@ -147,23 +147,17 @@ export function generateProposalHTML(data: ProposalData): string {
 
         .product-item {
           display: flex;
-          gap: 20px;
-          padding: 20px;
+          justify-content: space-between;
+          padding: 15px 20px;
           border: 1px solid #eee;
           border-radius: 8px;
-          margin-bottom: 20px;
-        }
-
-        .product-image {
-          width: 120px;
-          height: 120px;
-          object-fit: contain;
-          background: #f5f5f5;
-          border-radius: 4px;
+          margin-bottom: 15px;
+          background: #fff;
         }
 
         .product-details {
           flex: 1;
+          padding-right: 20px;
         }
 
         .product-name {
@@ -253,13 +247,6 @@ export function generateProposalHTML(data: ProposalData): string {
       <div class="product-list">
         ${cartItems.map((item) => `
           <div class="product-item">
-            ${item.image ? `
-              <img 
-                src="${process.env.NEXT_PUBLIC_APP_URL}/products/${item.image}" 
-                alt="${item.productName}"
-                class="product-image"
-              />
-            ` : ''}
             <div class="product-details">
               <div class="product-name">${item.productName}</div>
               <div class="product-options">
