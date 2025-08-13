@@ -52,6 +52,43 @@ export async function POST(request: NextRequest) {
       console.log(`Попытка отправки документа в Telegram для пользователя: ${telegramId}`);
       console.log(`Размер документа: ${fileBuffer.length} байт`);
       
+      // Сначала очищаем предыдущие сообщения от бота
+      try {
+        console.log('🧹 Очищаем предыдущие сообщения от бота...');
+        
+        // Получаем последние сообщения из чата
+        const updates = await bot.telegram.getUpdates({
+          offset: -100,
+          limit: 100,
+          timeout: 1
+        });
+        
+        // Ищем сообщения от бота к этому пользователю
+        const botMessagesToDelete = updates
+          .filter(update => 
+            update.message && 
+            update.message.chat.id.toString() === telegramId &&
+            update.message.from?.is_bot === true
+          )
+          .slice(-10) // Берем только последние 10 сообщений
+          .map(update => update.message!.message_id);
+        
+        // Удаляем найденные сообщения
+        for (const messageId of botMessagesToDelete) {
+          try {
+            await bot.telegram.deleteMessage(telegramId, messageId);
+            console.log(`🗑️ Удалено сообщение ${messageId}`);
+          } catch (deleteError: any) {
+            console.log(`ℹ️ Не удалось удалить сообщение ${messageId}: ${deleteError.message}`);
+          }
+        }
+        
+        console.log(`✅ Очистка завершена, обработано ${botMessagesToDelete.length} сообщений`);
+      } catch (cleanupError: any) {
+        console.log(`⚠️ Ошибка при очистке сообщений: ${cleanupError.message}`);
+        // Продолжаем выполнение, даже если очистка не удалась
+      }
+      
       // Отправляем документ пользователю
       const sentMessage = await bot.telegram.sendDocument(
         telegramId,
