@@ -340,7 +340,145 @@ export default function CartPage() {
   };
 
   const handleSendProposal = async () => {
-    return handleSendProposalWithData(userData);
+    return handleSendProposalHTML(userData);
+  };
+
+  const handleSendProposalHTML = async (userDataToUse: UserData | null) => {
+    // Для локального тестирования создаем тестовые данные если их нет
+    if (!userDataToUse?.telegramId) {
+      console.log("Данные пользователя отсутствуют, создаем тестовые данные для локального тестирования");
+      userDataToUse = {
+        telegramId: '228594178', // Ваш реальный Telegram ID для тестирования
+        username: 'test_user',
+        firstName: 'Тест',
+        lastName: 'Пользователь',
+        phoneNumber: '+7 (900) 123-45-67',
+        email: 'test@example.com',
+        companyName: 'Тестовая компания',
+        inn: '1234567890'
+      };
+      console.log("Созданы тестовые данные:", userDataToUse);
+    }
+
+    console.log("Начинаем отправку HTML КП в Telegram с данными:", userDataToUse);
+    setIsSending(true);
+    setSendResult(null);
+    
+    try {
+      // Отправляем данные через Telegram WebApp, если он доступен
+      if (window.Telegram?.WebApp?.sendData) {
+        try {
+          console.log('📱 Отправляем данные через Telegram WebApp');
+          window.Telegram.WebApp.sendData(JSON.stringify({
+            type: 'commercial_proposal_html',
+            cartItems,
+            userData: userDataToUse
+          }));
+          console.log('✅ Данные отправлены в Telegram бот');
+        } catch (telegramError) {
+          console.error('❌ Ошибка отправки через Telegram WebApp:', telegramError);
+        }
+      } else {
+        console.log('⚠️ Telegram WebApp.sendData недоступен, используем только API');
+      }
+      
+      console.log("Отправка HTML КП на сервер, telegramId:", userDataToUse.telegramId);
+      const response = await fetch('/api/proposals-html', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cartItems,
+          userData: userDataToUse
+        }),
+      });
+
+      console.log("Ответ сервера:", response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Результат запроса:", result);
+        
+        setSendResult({
+          type: 'success', 
+          message: '✅ Коммерческое предложение успешно отправлено в ваш Telegram!'
+        });
+      } else {
+        let errorMessage = 'Неизвестная ошибка';
+        let detailedLogs: string[] = [];
+        
+        // Сначала получаем текст ответа
+        const responseText = await response.text();
+        console.error("Ответ сервера (текст):", responseText);
+        
+        try {
+          // Пытаемся парсить как JSON
+          const errorData = JSON.parse(responseText);
+          console.error("Детальная ошибка API:", errorData);
+          errorMessage = errorData.details || errorData.error || 'Ошибка сервера';
+          
+          // Собираем детальные логи для модального окна
+          detailedLogs = [
+            `Статус ответа: ${response.status}`,
+            `URL: /api/proposals-html`,
+            `Время: ${new Date().toLocaleString('ru-RU')}`,
+            `Telegram ID: ${userDataToUse.telegramId}`,
+            `Количество товаров: ${cartItems.length}`,
+            `Ошибка API: ${errorData.error || 'Не указана'}`,
+            `Детали: ${errorData.details || 'Не указаны'}`
+          ];
+          
+          // Специальная обработка ошибки "чат не найден"
+          if (errorData.error === 'Чат с ботом не найден') {
+            errorMessage = '🤖 Сначала напишите боту /start в Telegram, а затем попробуйте снова';
+          }
+        } catch (parseError) {
+          console.error("Не удалось разобрать JSON ответ с ошибкой:", parseError);
+          console.error("Сырой ответ:", responseText);
+          
+          // Если не JSON, используем сырой текст
+          errorMessage = responseText || `HTTP ${response.status} ошибка`;
+          detailedLogs = [
+            `Статус ответа: ${response.status}`,
+            `URL: /api/proposals-html`,
+            `Время: ${new Date().toLocaleString('ru-RU')}`,
+            `Telegram ID: ${userDataToUse.telegramId}`,
+            `Количество товаров: ${cartItems.length}`,
+            `Сырой ответ: ${responseText}`,
+            `Ошибка парсинга: ${parseError}`
+          ];
+        }
+        
+        // Показываем модальное окно с ошибкой
+        showErrorModal(
+          'Ошибка отправки КП',
+          errorMessage,
+          detailedLogs
+        );
+        setSendResult({type: 'error', message: `Ошибка при отправке: ${errorMessage}`});
+      }
+    } catch (error) {
+      console.error('❌ Критическая ошибка при отправке HTML КП:', error);
+      
+      const detailedLogs = [
+        `Время: ${new Date().toLocaleString('ru-RU')}`,
+        `Telegram ID: ${userDataToUse?.telegramId || 'undefined'}`,
+        `Количество товаров: ${cartItems.length}`,
+        `Стек ошибки: ${error instanceof Error ? error.stack : 'Недоступен'}`,
+        `Сообщение ошибки: ${error instanceof Error ? error.message : String(error)}`
+      ];
+      
+      showErrorModal(
+        'Критическая ошибка',
+        'Произошла неожиданная ошибка при отправке КП',
+        detailedLogs
+      );
+      
+      setSendResult({type: 'error', message: 'Произошла неожиданная ошибка. Попробуйте еще раз.'});
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleSendProposalWithData = async (userDataToUse: UserData | null) => {
