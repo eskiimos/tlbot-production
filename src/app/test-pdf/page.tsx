@@ -85,7 +85,7 @@ export default function TestPDFPage() {
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex gap-4 mb-8">
-        <h1 className="text-3xl font-bold">Тест оптимизированного PDF</h1>
+        <h1 className="text-3xl font-bold">Тест оптимизированного PDF v2.0</h1>
         
         <div className="flex gap-2">
           <button 
