@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "if [ \"$VERCEL\" = \"1\" ]; then prisma migrate deploy; fi && prisma generate && next build",
-    "start": "next start",
+    "build": "prisma generate",
+    "start": "npm run bot",
     "lint": "next lint",
     "bot": "npx tsx bot.ts",
     "dev:bot": "npx tsx watch bot.ts",
@@ -40,6 +40,7 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
     "telegraf": "^4.16.3",
+    "tsx": "^4.20.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -53,7 +54,6 @@
     "eslint-config-next": "15.4.5",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
-    "tsx": "^4.20.3",
     "typescript": "^5"
   }
 }
