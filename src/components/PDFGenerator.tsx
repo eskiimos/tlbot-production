@@ -50,15 +50,20 @@ export default function usePDFGenerator({ cartItems, userData }: PDFGeneratorPro
 
     try {
       const canvas = await html2canvas(proposalRef.current, {
-        scale: 2,
+        scale: 1.5, // Уменьшаем масштаб с 2 до 1.5
         useCORS: true,
         logging: true,
+        backgroundColor: null, // Оптимизация прозрачности
       });
-      const imgData = canvas.toDataURL('image/png');
+      
+      // Оптимизируем качество PNG
+      const imgData = canvas.toDataURL('image/png', 0.85); // Уменьшаем качество до 85%
+      
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'pt',
         format: 'a4',
+        compress: true, // Включаем сжатие PDF
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -67,9 +72,38 @@ export default function usePDFGenerator({ cartItems, userData }: PDFGeneratorPro
       const ratio = canvasWidth / canvasHeight;
       const height = pdfWidth / ratio;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, height);
+      // Добавляем изображение с оптимизированными настройками
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, height, undefined, 'FAST');
       
-      return pdf.output('blob');
+      // Генерируем оптимизированный PDF
+      const blob = pdf.output('blob');
+      
+      // Проверяем размер
+      if (blob.size > 4 * 1024 * 1024) { // Если больше 4MB
+        console.warn('⚠️ PDF слишком большой:', (blob.size / 1024 / 1024).toFixed(2), 'MB');
+        
+        // Пробуем еще раз с меньшим качеством
+        const canvas2 = await html2canvas(proposalRef.current, {
+          scale: 1, // Уменьшаем масштаб еще сильнее
+          useCORS: true,
+          logging: true,
+          backgroundColor: null,
+        });
+        
+        const imgData2 = canvas2.toDataURL('image/png', 0.7); // Уменьшаем качество до 70%
+        
+        const pdf2 = new jsPDF({
+          orientation: 'portrait',
+          unit: 'pt',
+          format: 'a4',
+          compress: true,
+        });
+        
+        pdf2.addImage(imgData2, 'PNG', 0, 0, pdfWidth, height, undefined, 'FAST');
+        return pdf2.output('blob');
+      }
+      
+      return blob;
 
     } catch (error) {
       console.error("Ошибка при генерации PDF:", error);

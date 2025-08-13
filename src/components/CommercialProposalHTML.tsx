@@ -66,7 +66,11 @@ export const CommercialProposalHTML = React.forwardRef<HTMLDivElement, Commercia
     const proposalNumber = Math.floor(Date.now() / 1000);
 
     return (
-      <div ref={ref} className="bg-white text-black p-8" style={{ width: '210mm', minHeight: '297mm', fontFamily: 'Arial, sans-serif' }}>
+            <div className="p-6 bg-white min-h-[297mm] w-[210mm]" style={{ 
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontSize: '11px',
+        letterSpacing: '-0.01em',
+      }}>
         {/* Шапка документа */}
         <header className="flex justify-between items-start pb-2 border-b-2 border-gray-800">
           <div>
@@ -130,16 +134,25 @@ export const CommercialProposalHTML = React.forwardRef<HTMLDivElement, Commercia
                     <td className="p-0.5 border align-top text-center">
                       {item.image ? (
                         <img 
-                          src={item.image} 
+                          src={item.image.replace(/\.(jpg|jpeg|png)/, '_thumb.$1')} // Используем маленькие версии изображений
                           alt={item.productName}
-                          className="w-8 h-8 object-cover rounded mx-auto"
-                          style={{ aspectRatio: '1/1' }}
+                          className="w-6 h-6 object-cover rounded mx-auto" // Уменьшаем размер с w-8 h-8 до w-6 h-6
+                          style={{ 
+                            aspectRatio: '1/1',
+                            imageRendering: 'pixelated' as const,
+                          }}
                           onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
+                            const target = e.target as HTMLImageElement;
+                            // Если миниатюра не найдена, пробуем оригинал
+                            if (!target.src.includes('_thumb')) {
+                              target.style.display = 'none';
+                            } else {
+                              target.src = item.image!;
+                            }
                           }}
                         />
                       ) : (
-                        <div className="w-8 h-8 bg-gray-200 rounded mx-auto flex items-center justify-center text-xs text-gray-500">
+                        <div className="w-6 h-6 bg-gray-200 rounded mx-auto flex items-center justify-center text-[10px] text-gray-500">
                           Нет фото
                         </div>
                       )}
