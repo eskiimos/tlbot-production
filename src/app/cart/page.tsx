@@ -1133,16 +1133,32 @@ export default function CartPage() {
             <div className="space-y-3">
               {/* Кнопка отправки в Telegram */}
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   console.log('🚀 КНОПКА НАЖАТА! Начинаем отправку КП');
                   console.log('📋 userData:', userData);
+                  console.log('🔧 Event:', e.type);
                   handleSendProposal();
                 }}
+                onTouchStart={(e) => {
+                  console.log('👆 Touch начался на кнопке КП');
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  console.log('👆 Touch закончился на кнопке КП');
+                }}
                 disabled={isSending}
+                style={{ 
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  zIndex: 10
+                }}
                 className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 border ${
                   isSending
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
-                    : 'bg-white text-[#303030] border-gray-300 hover:bg-gray-50 active:bg-gray-100'
+                    : 'bg-white text-[#303030] border-gray-300 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98]'
                 }`}
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
