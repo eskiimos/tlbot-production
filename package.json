@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate",
-    "start": "npm run bot",
+    "build": "prisma generate && next build",
+    "start": "next start",
     "lint": "next lint",
     "bot": "npx tsx bot.ts",
     "dev:bot": "npx tsx watch bot.ts",
