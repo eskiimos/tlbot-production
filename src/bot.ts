@@ -46,8 +46,12 @@ bot.use(async (ctx, next) => {
             messageId: ctx.message.message_id,
             text: 'text' in ctx.message ? ctx.message.text : null,
             type: messageType,
-            // сохраняем update целиком (как JSON)
-            data: (ctx.update as unknown) as Prisma.InputJsonValue,
+            // Упрощаем данные для JSON
+            data: {
+              message_id: ctx.message.message_id,
+              date: ctx.message.date,
+              chat: { id: ctx.message.chat.id, type: ctx.message.chat.type }
+            } as Prisma.InputJsonValue,
           },
         });
       }
@@ -245,8 +249,13 @@ bot.on('web_app_data', async (ctx) => {
 
 // Обработка ошибок
 bot.catch((err, ctx) => {
-  console.error('Ошибка бота:', err);
-  ctx.reply('😕 Произошла техническая ошибка. Попробуйте позже или свяжитесь с поддержкой.');
+  console.error('❌ Ошибка бота:', err);
+  console.error('Context:', ctx.updateType, ctx.update);
+  try {
+    ctx.reply('😕 Произошла техническая ошибка. Попробуйте позже или свяжитесь с поддержкой.');
+  } catch (replyError) {
+    console.error('❌ Не удалось отправить сообщение об ошибке:', replyError);
+  }
 });
 
 // Health check endpoint
@@ -261,8 +270,10 @@ app.get('/health', (req: any, res: any) => {
 // Запуск бота и веб-сервера
 async function startBot() {
   try {
-    // Генерация Prisma Client
     console.log('🔄 Генерация Prisma Client...');
+    
+    console.log('� Подключение к базе данных...');
+    console.log('DATABASE_URL:', process.env.DATABASE_URL?.substring(0, 50) + '...');
     
     // Подключение к базе данных
     await prisma.$connect();
@@ -276,7 +287,7 @@ async function startBot() {
 
     // Удаляем вебхук, чтобы получать апдейты через long polling
     await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch((e) => {
-      console.warn('Не удалось удалить webhook (можно игнорировать если не был установлен):', e?.message || e);
+      console.warn('⚠️ Не удалось удалить webhook (можно игнорировать если не был установлен):', e?.message || e);
     });
 
     // Получаем информацию о боте
@@ -285,14 +296,15 @@ async function startBot() {
 
     // Запуск бота
     await bot.launch();
-    console.log('🤖 Telegram бот Total Lookas запущен!');
+    console.log('🚀 Telegram бот Total Lookas запущен!');
 
     // Уведомляем администратора о старте бота, если указан ADMIN_CHAT_ID
     if (process.env.ADMIN_CHAT_ID) {
       try {
         await bot.telegram.sendMessage(process.env.ADMIN_CHAT_ID, '✅ Bot started and is online');
+        console.log('📤 Уведомление администратору отправлено');
       } catch (e) {
-        console.warn('Не удалось отправить стартовое сообщение администратору:', (e as any)?.message || e);
+        console.warn('⚠️ Не удалось отправить стартовое сообщение администратору:', (e as any)?.message || e);
       }
     }
 
@@ -309,7 +321,15 @@ async function startBot() {
       prisma.$disconnect();
     });
   } catch (error) {
-    console.error('❌ Ошибка запуска бота:', error);
+    console.error('❌ Ошибка запуска бота:');
+    console.error('Error name:', (error as any)?.name);
+    console.error('Error message:', (error as any)?.message);
+    console.error('Error stack:', (error as any)?.stack);
+    
+    if ((error as any)?.code) {
+      console.error('Error code:', (error as any)?.code);
+    }
+    
     process.exit(1);
   }
 }
