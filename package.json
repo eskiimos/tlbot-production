@@ -1,0 +1,38 @@
+{
+  "name": "total-lookas-telegram-bot",
+  "version": "1.0.0",
+  "description": "Telegram бот для Total Lookas - заказ корпоративного мерча",
+  "main": "dist/bot.js",
+  "scripts": {
+    "dev": "tsx watch src/bot.ts",
+    "build": "tsc",
+    "start": "node dist/bot.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:migrate": "prisma migrate dev",
+    "test": "echo \"Tests coming soon...\" && exit 0"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "total-lookas",
+    "merch",
+    "typescript"
+  ],
+  "author": "Total Lookas",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^6.14.0",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.2.1",
+    "prisma": "^6.14.0",
+    "tsx": "^4.20.4",
+    "typescript": "^5.9.2"
+  }
+}
