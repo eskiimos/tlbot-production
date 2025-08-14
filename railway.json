@@ -1,6 +1,8 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "deploy": {
-    "startCommand": "npm run bot"
+    "startCommand": "npm start",
+    "healthcheckPath": "/health", 
+    "healthcheckTimeout": 300
   }
 }
