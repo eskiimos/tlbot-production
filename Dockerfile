@@ -26,6 +26,7 @@ RUN adduser --system --uid 1001 botuser
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
 COPY package*.json ./
+COPY bot.ts ./
 COPY src/bot ./src/bot
 COPY src/lib ./src/lib
 
