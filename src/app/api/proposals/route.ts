@@ -7,6 +7,8 @@ export async function POST(request: NextRequest) {
   console.log('🚀 API /api/proposals вызван');
   console.log('📍 Environment:', process.env.NODE_ENV);
   console.log('🔑 Bot token exists:', Boolean(process.env.TELEGRAM_BOT_TOKEN));
+  console.log('📁 Import check:', Boolean(generateProposalHTML));
+  console.log('🔍 generateProposalHTML type:', typeof generateProposalHTML);
   
   let telegramId: string | null = null;
   let orderData: any = null;
