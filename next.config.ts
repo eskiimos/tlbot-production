@@ -9,7 +9,15 @@ const nextConfig: NextConfig = {
     // Игнорируем ошибки типов при сборке в продакшене
     ignoreBuildErrors: true,
   },
-  output: 'standalone',
+  // Убираем output: 'standalone' для Railway
+  experimental: {
+    serverComponentsExternalPackages: ['@prisma/client', 'prisma']
+  },
+  webpack: (config) => {
+    // Исправляем проблемы с внешними модулями
+    config.externals = [...config.externals, 'canvas', 'jsdom'];
+    return config;
+  },
 };
 
 export default nextConfig;
