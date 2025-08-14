@@ -1,4 +1,0 @@
-# Игнорируем Dockerfile для Railway, используем nixpacks
-Dockerfile
-Dockerfile.*
-docker-compose*.yml
