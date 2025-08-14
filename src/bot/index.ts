@@ -548,9 +548,20 @@ export async function startBot() {
       process.once('SIGINT', () => bot.stop('SIGINT'));
       process.once('SIGTERM', () => bot.stop('SIGTERM'));
     } else {
-      // В production режиме просто проверяем подключение к API
-      await bot.telegram.getMe();
-      console.log('Telegram бот готов к обработке webhook запросов!');
+      // В production режиме на Railway тоже используем Long Polling
+      console.log('🔄 Запуск в режиме Long Polling для Railway...');
+      
+      await bot.launch().catch((error) => {
+        console.error('Ошибка при запуске Long Polling:', error);
+      });
+      
+      // Даем время боту инициализироваться
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('✅ Инициализация завершена, бот слушает обновления...');
+      
+      // Обработка завершения процесса
+      process.once('SIGINT', () => bot.stop('SIGINT'));
+      process.once('SIGTERM', () => bot.stop('SIGTERM'));
     }
     return true;
   } catch (error) {
